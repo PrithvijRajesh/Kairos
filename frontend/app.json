@@ -1,0 +1,8 @@
+{
+  "expo": {
+    "name": "Kairos",
+    "slug": "kairos",
+    "scheme": "kairos",
+    "plugins": ["expo-router"]
+  }
+}

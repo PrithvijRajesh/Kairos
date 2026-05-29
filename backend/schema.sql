@@ -1,0 +1,1 @@
+-- Tables: users, goals, plans, run_logs, gym_logs, check_ins.

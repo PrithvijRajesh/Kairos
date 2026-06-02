@@ -3,6 +3,12 @@ import { Text, View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { useState } from 'react';
 import { getTodayWorkout, getExercisesForWorkout } from '../../coreWorkouts';
 import { colors, radius, spacing } from '../../theme';
+import { router } from 'expo-router';
+import {
+  applySessionFeels,
+  loadCoreProgress,
+  saveCoreProgress,
+} from '../../coreProgress';
 
 export type ExerciseFeel = 'easy' | 'perfect' | 'hard';
 
@@ -16,6 +22,7 @@ export default function CoreReviewScreen() {
   const workout = getTodayWorkout();
   const exercises = getExercisesForWorkout(workout);
   const [feels, setFeels] = useState<Record<string, ExerciseFeel>>({});
+  const [isSaving, setIsSaving] = useState(false);
 
   function setFeel(exerciseId: string, feel: ExerciseFeel) {
     setFeels((prev) => ({ ...prev, [exerciseId]: feel }));
@@ -56,12 +63,17 @@ export default function CoreReviewScreen() {
 
       <Pressable
         style={[styles.doneButton, !allRated && styles.doneDisabled]}
-        disabled={!allRated}
-        onPress={() => {
-          // Step 4: save progression here, then router.replace('/core')
+        disabled={!allRated || isSaving}
+        onPress={async () => {
+          setIsSaving(true);
+          const currentState = await loadCoreProgress();
+          const nextState = applySessionFeels(currentState, exercises, feels);
+          await saveCoreProgress(nextState);
+          router.replace('/core');
+          setIsSaving(false);
         }}
       >
-        <Text style={styles.doneText}>Save & finish</Text>
+        <Text style={styles.doneText}>{isSaving ? 'Saving...' : 'Save & finish'}</Text>
       </Pressable>
     </ScrollView>
   );

@@ -8,6 +8,11 @@ import {
   formatPrescription,
   getHoldSeconds,
 } from '../../coreWorkouts';
+import {
+  getExerciseBonusSeconds,
+  getExerciseLevel,
+  loadCoreProgress,
+} from '../../coreProgress';
 import { colors, radius, spacing } from '../../theme';
 
 type Phase = 'ready' | 'work' | 'rest';
@@ -20,9 +25,11 @@ export default function CoreWorkoutScreen() {
   const [setNumber, setSetNumber] = useState(1);
   const [phase, setPhase] = useState<Phase>('ready');
   const [secondsLeft, setSecondsLeft] = useState(0);
+  const [levels, setLevels] = useState<Record<string, 1 | 2 | 3>>({});
+  const [bonusSeconds, setBonusSeconds] = useState<Record<string, number>>({});
 
-  const level = 1 as 1 | 2 | 3; // Step 4: load from core progress storage
   const current = exercises[exerciseIndex];
+  const level = current ? (levels[current.id] ?? 1) : 1;
   const isTimeExercise = current?.type === 'time';
 
   if (!current) {
@@ -64,10 +71,30 @@ export default function CoreWorkoutScreen() {
   }
 
   function startTimedSet() {
-    const holdSec = getHoldSeconds(current, level) ?? 30;
+    const holdSec = (getHoldSeconds(current, level) ?? 30) + (bonusSeconds[current.id] ?? 0);
     setSecondsLeft(holdSec);
     setPhase('work');
   }
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadLevelsAndBonus() {
+      const state = await loadCoreProgress();
+      if (!isMounted) return;
+      const nextLevels: Record<string, 1 | 2 | 3> = {};
+      const nextBonus: Record<string, number> = {};
+      for (const exercise of exercises) {
+        nextLevels[exercise.id] = getExerciseLevel(state, exercise.id);
+        nextBonus[exercise.id] = getExerciseBonusSeconds(state, exercise.id);
+      }
+      setLevels(nextLevels);
+      setBonusSeconds(nextBonus);
+    }
+    loadLevelsAndBonus();
+    return () => {
+      isMounted = false;
+    };
+  }, [workout.id]);
 
   // Count down during work / rest
   useEffect(() => {

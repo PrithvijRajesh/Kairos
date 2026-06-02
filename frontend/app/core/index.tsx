@@ -1,18 +1,40 @@
 // Core list: today's workout preview and Start workout button.
 import { ScrollView, Text, View, StyleSheet, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import {
   getTodayWorkout,
   getExercisesForWorkout,
   formatPrescription,
   getProgramStatusLabel,
 } from '../../coreWorkouts';
+import { getExerciseLevel, loadCoreProgress } from '../../coreProgress';
 import { colors, radius, spacing } from '../../theme';
 
 export default function CoreScreen() {
   const workout = getTodayWorkout();
   const exercises = getExercisesForWorkout(workout);
+  const [levels, setLevels] = useState<Record<string, 1 | 2 | 3>>({});
+
+  useFocusEffect(
+    useCallback(() => {
+      let isMounted = true;
+      async function loadLevels() {
+        const state = await loadCoreProgress();
+        if (!isMounted) return;
+        const nextLevels: Record<string, 1 | 2 | 3> = {};
+        for (const exercise of exercises) {
+          nextLevels[exercise.id] = getExerciseLevel(state, exercise.id);
+        }
+        setLevels(nextLevels);
+      }
+      loadLevels();
+      return () => {
+        isMounted = false;
+      };
+    }, [workout.id])
+  );
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom']}>
@@ -27,7 +49,7 @@ export default function CoreScreen() {
           <View key={exercise.id} style={styles.card}>
             <Text style={styles.exerciseName}>{exercise.name}</Text>
             <Text style={styles.exercisePrescription}>
-              {formatPrescription(exercise, 1)}
+              {formatPrescription(exercise, levels[exercise.id] ?? 1)}
             </Text>
             {exercise.cues.map((cue) => (
               <Text key={cue} style={styles.cue}>

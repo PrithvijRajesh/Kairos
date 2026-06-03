@@ -14,6 +14,7 @@ export default function CoreLayout() {
     >
       <Stack.Screen name="index" options={{ title: 'Core' }} />
       <Stack.Screen name="workout" options={{ title: 'Workout' }} />
+      <Stack.Screen name="complete" options={{ title: 'Complete', headerBackVisible: false }} />
       <Stack.Screen name="review" options={{ title: 'Review' }} />
     </Stack>
   );

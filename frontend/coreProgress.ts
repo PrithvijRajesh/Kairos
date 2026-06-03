@@ -14,12 +14,25 @@ export type CoreProgressEntry = {
   bonusSec: number; // useful for time-based exercises between level jumps
 };
 
+export type CoreStreakState = {
+  currentStreak: number;
+  longestStreak: number;
+  lastCompletedDate: string | null; // YYYY-MM-DD (local)
+};
+
 // Whole saved object in AsyncStorage.
 export type CoreProgressState = {
   entries: Record<string, CoreProgressEntry>;
+  streak: CoreStreakState;
 };
 
-const DEFAULT_STATE: CoreProgressState = { entries: {} };
+const DEFAULT_STREAK: CoreStreakState = {
+  currentStreak: 0,
+  longestStreak: 0,
+  lastCompletedDate: null,
+};
+
+const DEFAULT_STATE: CoreProgressState = { entries: {}, streak: DEFAULT_STREAK };
 const DEFAULT_ENTRY: CoreProgressEntry = { level: 1, bonusSec: 0 };
 
 // Basic helper: avoid sprinkling try/catch everywhere.
@@ -32,7 +45,10 @@ function safeParseProgress(raw: string | null): CoreProgressState {
     if (!parsed || typeof parsed !== 'object' || !parsed.entries) {
       return DEFAULT_STATE;
     }
-    return parsed;
+    return {
+      entries: parsed.entries,
+      streak: parsed.streak ?? DEFAULT_STREAK,
+    };
   } catch {
     return DEFAULT_STATE;
   }
@@ -134,7 +150,42 @@ export function applySessionFeels(
     nextEntries[exercise.id] = updatedEntry;
   }
 
-  return { entries: nextEntries };
+  return { ...state, entries: nextEntries };
+}
+
+export function toLocalDateKey(date: Date = new Date()): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function isYesterdayDateKey(dateKey: string): boolean {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  return toLocalDateKey(yesterday) === dateKey;
+}
+
+/** Call once when user finishes a core workout for the day. Safe to call multiple times same day. */
+export function recordCoreWorkoutCompletion(state: CoreProgressState): CoreProgressState {
+  const today = toLocalDateKey();
+  const last = state.streak.lastCompletedDate;
+
+  if (last === today) {
+    return state;
+  }
+
+  const currentStreak = last && isYesterdayDateKey(last) ? state.streak.currentStreak + 1 : 1;
+  const longestStreak = Math.max(state.streak.longestStreak, currentStreak);
+
+  return {
+    ...state,
+    streak: {
+      currentStreak,
+      longestStreak,
+      lastCompletedDate: today,
+    },
+  };
 }
 
 export function getExerciseLevel(

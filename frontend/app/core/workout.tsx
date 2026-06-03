@@ -1,5 +1,5 @@
-// Active core workout session: sets, rest timer, then review screen.
-import { useEffect, useState } from 'react';
+// Active core workout session: sets, rest timer, per-side holds, then complete screen.
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Text, View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import {
@@ -7,22 +7,27 @@ import {
   getTodayWorkout,
   formatPrescription,
   getHoldSeconds,
+  isPerSideTimeExercise,
 } from '../../coreWorkouts';
 import {
   getExerciseBonusSeconds,
   getExerciseLevel,
   loadCoreProgress,
+  recordCoreWorkoutCompletion,
+  saveCoreProgress,
 } from '../../coreProgress';
 import { colors, radius, spacing } from '../../theme';
 
 type Phase = 'ready' | 'work' | 'rest';
+type Side = 'left' | 'right';
 
 export default function CoreWorkoutScreen() {
   const workout = getTodayWorkout();
-  const exercises = getExercisesForWorkout(workout);
+  const exercises = useMemo(() => getExercisesForWorkout(workout), [workout.id]);
 
   const [exerciseIndex, setExerciseIndex] = useState(0);
   const [setNumber, setSetNumber] = useState(1);
+  const [activeSide, setActiveSide] = useState<Side>('left');
   const [phase, setPhase] = useState<Phase>('ready');
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [levels, setLevels] = useState<Record<string, 1 | 2 | 3>>({});
@@ -31,6 +36,57 @@ export default function CoreWorkoutScreen() {
   const current = exercises[exerciseIndex];
   const level = current ? (levels[current.id] ?? 1) : 1;
   const isTimeExercise = current?.type === 'time';
+  const perSide = current ? isPerSideTimeExercise(current, level) : false;
+
+  const finishWorkout = useCallback(async () => {
+    const state = await loadCoreProgress();
+    const nextState = recordCoreWorkoutCompletion(state);
+    await saveCoreProgress(nextState);
+    router.replace('/core/complete');
+  }, []);
+
+  const onSetDone = useCallback(() => {
+    if (!current) return;
+
+    if (setNumber < current.sets) {
+      setPhase('rest');
+      setSecondsLeft(current.restSec);
+      return;
+    }
+
+    if (perSide && activeSide === 'left') {
+      setActiveSide('right');
+      setSetNumber(1);
+      setPhase('ready');
+      setSecondsLeft(0);
+      return;
+    }
+
+    if (exerciseIndex < exercises.length - 1) {
+      setExerciseIndex((i) => i + 1);
+      setSetNumber(1);
+      setActiveSide('left');
+      setPhase('ready');
+      setSecondsLeft(0);
+      return;
+    }
+
+    void finishWorkout();
+  }, [
+    activeSide,
+    current,
+    exerciseIndex,
+    exercises.length,
+    finishWorkout,
+    perSide,
+    setNumber,
+  ]);
+
+  const finishRest = useCallback(() => {
+    setSetNumber((n) => n + 1);
+    setPhase('ready');
+    setSecondsLeft(0);
+  }, []);
 
   if (!current) {
     return (
@@ -46,34 +102,14 @@ export default function CoreWorkoutScreen() {
     return `${m}:${s.toString().padStart(2, '0')}`;
   }
 
-  /** After a set: rest, next exercise, or review */
-  function onSetDone() {
-    if (setNumber < current.sets) {
-      setPhase('rest');
-      setSecondsLeft(current.restSec);
-      return;
-    }
-    if (exerciseIndex < exercises.length - 1) {
-      setExerciseIndex((i) => i + 1);
-      setSetNumber(1);
-      setPhase('ready');
-      setSecondsLeft(0);
-      return;
-    }
-    router.replace('/core/review');
-  }
-
-  /** After rest between sets: go to next set */
-  function finishRest() {
-    setSetNumber((n) => n + 1);
-    setPhase('ready');
-    setSecondsLeft(0);
-  }
-
   function startTimedSet() {
     const holdSec = (getHoldSeconds(current, level) ?? 30) + (bonusSeconds[current.id] ?? 0);
     setSecondsLeft(holdSec);
     setPhase('work');
+  }
+
+  function sideLabel(side: Side) {
+    return side === 'left' ? 'Left side' : 'Right side';
   }
 
   useEffect(() => {
@@ -96,7 +132,6 @@ export default function CoreWorkoutScreen() {
     };
   }, [workout.id]);
 
-  // Count down during work / rest
   useEffect(() => {
     if ((phase !== 'work' && phase !== 'rest') || secondsLeft <= 0) {
       return;
@@ -109,7 +144,6 @@ export default function CoreWorkoutScreen() {
     return () => clearInterval(id);
   }, [phase, secondsLeft]);
 
-  // When timer hits 0: work -> rest, rest -> next set
   useEffect(() => {
     if (secondsLeft !== 0) return;
 
@@ -118,7 +152,7 @@ export default function CoreWorkoutScreen() {
     } else if (phase === 'rest') {
       finishRest();
     }
-  }, [secondsLeft, phase]);
+  }, [secondsLeft, phase, onSetDone, finishRest]);
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -129,12 +163,19 @@ export default function CoreWorkoutScreen() {
       <Text style={styles.prescription}>{formatPrescription(current, level)}</Text>
       <Text style={styles.setLabel}>
         Set {setNumber} of {current.sets}
+        {perSide ? ` · ${sideLabel(activeSide)}` : ''}
       </Text>
+
+      {phase === 'ready' && perSide && activeSide === 'right' && (
+        <Text style={styles.switchHint}>Switch to your right side</Text>
+      )}
 
       {phase === 'work' && (
         <View style={styles.timerBox}>
           <Text style={styles.timerText}>{formatClock(secondsLeft)}</Text>
-          <Text style={styles.phaseLabel}>Hold</Text>
+          <Text style={styles.phaseLabel}>
+            Hold{perSide ? ` — ${sideLabel(activeSide)}` : ''}
+          </Text>
         </View>
       )}
 
@@ -152,7 +193,9 @@ export default function CoreWorkoutScreen() {
         <View style={styles.actions}>
           {isTimeExercise ? (
             <Pressable style={styles.primaryButton} onPress={startTimedSet}>
-              <Text style={styles.primaryButtonText}>Start set</Text>
+              <Text style={styles.primaryButtonText}>
+                {perSide ? `Start ${sideLabel(activeSide)}` : 'Start set'}
+              </Text>
             </Pressable>
           ) : null}
           <Pressable style={styles.primaryButton} onPress={onSetDone}>
@@ -203,6 +246,14 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: colors.accent,
+  },
+  switchHint: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.accent,
+    backgroundColor: colors.accentSoft,
+    padding: spacing.sm,
+    borderRadius: radius.sm,
   },
   timerBox: {
     alignItems: 'center',

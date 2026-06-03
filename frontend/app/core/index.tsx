@@ -16,6 +16,7 @@ export default function CoreScreen() {
   const workout = getTodayWorkout();
   const exercises = getExercisesForWorkout(workout);
   const [levels, setLevels] = useState<Record<string, 1 | 2 | 3>>({});
+  const [currentStreak, setCurrentStreak] = useState(0);
 
   useFocusEffect(
     useCallback(() => {
@@ -28,6 +29,7 @@ export default function CoreScreen() {
           nextLevels[exercise.id] = getExerciseLevel(state, exercise.id);
         }
         setLevels(nextLevels);
+        setCurrentStreak(state.streak.currentStreak);
       }
       loadLevels();
       return () => {
@@ -44,6 +46,11 @@ export default function CoreScreen() {
         <Text style={styles.subtitle}>{workout.focus}</Text>
         <Text style={styles.meta}>{getProgramStatusLabel()}</Text>
         <Text style={styles.meta}>~{workout.estimatedMin} min</Text>
+        {currentStreak > 0 ? (
+          <Text style={styles.streakBadge}>
+            {currentStreak} day streak
+          </Text>
+        ) : null}
 
         {exercises.map((exercise) => (
           <View key={exercise.id} style={styles.card}>
@@ -106,6 +113,17 @@ const styles = StyleSheet.create({
   meta: {
     fontSize: 14,
     color: colors.textMuted,
+    marginBottom: spacing.sm,
+  },
+  streakBadge: {
+    alignSelf: 'flex-start',
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.accent,
+    backgroundColor: colors.accentSoft,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.sm,
     marginBottom: spacing.sm,
   },
   card: {

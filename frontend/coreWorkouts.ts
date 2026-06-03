@@ -456,3 +456,13 @@ export function getHoldSeconds(
   const step = exercise.levels.find((l) => l.level === level)!;
   return step.holdSecPerSide ?? step.holdSec ?? null;
 }
+
+/** True when timer runs once per side (e.g. side plank, Copenhagen). */
+export function isPerSideTimeExercise(
+  exercise: CoreExerciseTemplate,
+  level: 1 | 2 | 3 = 1
+): boolean {
+  if (exercise.type !== 'time') return false;
+  const step = exercise.levels.find((l) => l.level === level)!;
+  return step.holdSecPerSide != null;
+}

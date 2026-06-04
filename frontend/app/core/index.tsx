@@ -10,10 +10,12 @@ import {
   getProgramStatusLabel,
 } from '../../coreWorkouts';
 import { getExerciseLevel, loadCoreProgress } from '../../coreProgress';
-import { colors, radius, spacing } from '../../theme';
+import { useTheme } from '../../ThemeContext';
+import { radius, spacing } from '../../theme';
 
 export default function CoreScreen() {
-  const workout = getTodayWorkout();
+  const { colors, programStartDate } = useTheme();
+  const workout = getTodayWorkout(programStartDate);
   const exercises = getExercisesForWorkout(workout);
   const [levels, setLevels] = useState<Record<string, 1 | 2 | 3>>({});
   const [currentStreak, setCurrentStreak] = useState(0);
@@ -35,8 +37,10 @@ export default function CoreScreen() {
       return () => {
         isMounted = false;
       };
-    }, [workout.id])
+    }, [workout.id, exercises])
   );
+
+  const styles = makeStyles(colors);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom']}>
@@ -44,7 +48,7 @@ export default function CoreScreen() {
         <Text style={styles.badge}>Workout {workout.id}</Text>
         <Text style={styles.title}>{workout.title}</Text>
         <Text style={styles.subtitle}>{workout.focus}</Text>
-        <Text style={styles.meta}>{getProgramStatusLabel()}</Text>
+        <Text style={styles.meta}>{getProgramStatusLabel(new Date(), programStartDate)}</Text>
         <Text style={styles.meta}>~{workout.estimatedMin} min</Text>
         {currentStreak > 0 ? (
           <Text style={styles.streakBadge}>
@@ -80,7 +84,8 @@ export default function CoreScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: ReturnType<typeof useTheme>['colors']) {
+  return StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: colors.background,
@@ -165,4 +170,5 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
   },
-});
+  });
+}

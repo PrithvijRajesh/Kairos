@@ -2,7 +2,8 @@
 import { Text, View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { useState } from 'react';
 import { getTodayWorkout, getExercisesForWorkout } from '../../coreWorkouts';
-import { colors, radius, spacing } from '../../theme';
+import { useTheme } from '../../ThemeContext';
+import { radius, spacing } from '../../theme';
 import { router } from 'expo-router';
 import {
   applySessionFeels,
@@ -19,7 +20,8 @@ export type SessionReview = {
 };
 
 export default function CoreReviewScreen() {
-  const workout = getTodayWorkout();
+  const { colors, programStartDate } = useTheme();
+  const workout = getTodayWorkout(programStartDate);
   const exercises = getExercisesForWorkout(workout);
   const [feels, setFeels] = useState<Record<string, ExerciseFeel>>({});
   const [isSaving, setIsSaving] = useState(false);
@@ -29,6 +31,7 @@ export default function CoreReviewScreen() {
   }
 
   const allRated = exercises.every((ex) => feels[ex.id] != null);
+  const styles = makeStyles(colors);
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -79,7 +82,8 @@ export default function CoreReviewScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: ReturnType<typeof useTheme>['colors']) {
+  return StyleSheet.create({
   container: {
     padding: spacing.lg,
     gap: spacing.md,
@@ -144,4 +148,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 16,
   },
-});
+  });
+}

@@ -4,13 +4,17 @@ import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { loadGoals, savedGoals } from '../storage';
-import { colors, radius, spacing } from '../theme';
+import { useTheme } from '../ThemeContext';
+import { radius, spacing } from '../theme';
 
 export default function DashboardScreen() {
+    const { colors } = useTheme();
     const[goals, setGoals] = useState<savedGoals | null> (null);
     useEffect(() =>{
         loadGoals().then(setGoals);
     }, []);
+
+    const styles = makeStyles(colors);
 
     if(!goals) {
         return (
@@ -25,7 +29,12 @@ export default function DashboardScreen() {
     return (
         <SafeAreaView style={styles.safeArea}>
             <ScrollView contentContainerStyle={styles.container}>
-                <Text style={styles.title}>Dashboard</Text>
+                <View style={styles.headerRow}>
+                    <Text style={styles.title}>Dashboard</Text>
+                    <Pressable style={styles.settingsButton} onPress={() => router.push('/settings')}>
+                        <Text style={styles.settingsButtonText}>Settings</Text>
+                    </Pressable>
+                </View>
 
                 <View style={styles.goalsCard}>
                     <Text style={styles.cardTitle}>Your Goals</Text>
@@ -59,7 +68,8 @@ export default function DashboardScreen() {
     )
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: ReturnType<typeof useTheme>['colors']) {
+  return StyleSheet.create({
     safeArea: {
         flex: 1,
         backgroundColor: colors.background,
@@ -77,9 +87,27 @@ const styles = StyleSheet.create({
         padding: spacing.lg,
         gap: spacing.md,
     },
+    headerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
     title: {
         fontSize: 28,
         fontWeight: '700',
+        color: colors.text,
+    },
+    settingsButton: {
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.xs,
+        borderRadius: radius.sm,
+        borderWidth: 1,
+        borderColor: colors.border,
+        backgroundColor: colors.surface,
+    },
+    settingsButtonText: {
+        fontSize: 14,
+        fontWeight: '600',
         color: colors.text,
     },
     goalsCard: {
@@ -150,4 +178,5 @@ const styles = StyleSheet.create({
     tileTitleAccent: {
         color: colors.accent,
     },
-});
+  });
+}

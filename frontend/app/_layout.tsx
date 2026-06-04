@@ -1,8 +1,10 @@
-// Root layout: wraps every screen (navigation, theme).
+// Root layout: theme provider and navigation shell.
 import { Stack } from 'expo-router';
-import { colors } from '../theme';
+import { ThemeProvider, useTheme } from '../ThemeContext';
 
-export default function RootLayout() {
+function RootStack() {
+  const { colors } = useTheme();
+
   return (
     <Stack
       screenOptions={{
@@ -11,6 +13,19 @@ export default function RootLayout() {
         headerTitleStyle: { fontWeight: '700' },
         contentStyle: { backgroundColor: colors.background },
       }}
-    />
+    >
+      <Stack.Screen name="index" options={{ title: 'Goals' }} />
+      <Stack.Screen name="dashboard" options={{ title: 'Dashboard' }} />
+      <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+      <Stack.Screen name="core" options={{ headerShown: false }} />
+    </Stack>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <ThemeProvider>
+      <RootStack />
+    </ThemeProvider>
   );
 }

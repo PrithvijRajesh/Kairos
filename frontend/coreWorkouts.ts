@@ -369,8 +369,8 @@ export const workoutD: CoreWorkout = {
   ],
 };
 
-/** Program starts June 1, 2026 — day 0 = Workout A */
-export const CORE_PROGRAM_START_ISO = '2026-06-01';
+/** Default program start if settings not loaded yet */
+export const DEFAULT_PROGRAM_START_ISO = '2026-06-01';
 
 export const coreWorkoutRotation: CoreWorkout[] = [
   workoutA,
@@ -383,43 +383,64 @@ function startOfLocalDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
-function parseProgramStartDate(): Date {
-  const [year, month, day] = CORE_PROGRAM_START_ISO.split('-').map(Number);
+function parseProgramStartDate(programStartIso: string): Date {
+  const [year, month, day] = programStartIso.split('-').map(Number);
   return new Date(year, month - 1, day);
 }
 
-/** Days since program start (0 = June 1, 2026). Negative = before start. */
-export function getDaysSinceProgramStart(forDate: Date = new Date()): number {
-  const start = startOfLocalDay(parseProgramStartDate());
+export function formatProgramStartLabel(programStartIso: string): string {
+  const date = parseProgramStartDate(programStartIso);
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+/** Days since program start (0 = start day). Negative = before start. */
+export function getDaysSinceProgramStart(
+  forDate: Date = new Date(),
+  programStartIso: string = DEFAULT_PROGRAM_START_ISO
+): number {
+  const start = startOfLocalDay(parseProgramStartDate(programStartIso));
   const current = startOfLocalDay(forDate);
   const msPerDay = 24 * 60 * 60 * 1000;
   return Math.round((current.getTime() - start.getTime()) / msPerDay);
 }
 
 /** Which workout (A–D) for a given calendar day */
-export function getWorkoutForDate(forDate: Date = new Date()): CoreWorkout {
-  const days = getDaysSinceProgramStart(forDate);
+export function getWorkoutForDate(
+  forDate: Date = new Date(),
+  programStartIso: string = DEFAULT_PROGRAM_START_ISO
+): CoreWorkout {
+  const days = getDaysSinceProgramStart(forDate, programStartIso);
   if (days < 0) {
     return workoutA;
   }
   return coreWorkoutRotation[days % coreWorkoutRotation.length];
 }
 
-export function getTodayWorkout(): CoreWorkout {
-  return getWorkoutForDate(new Date());
+export function getTodayWorkout(programStartIso: string = DEFAULT_PROGRAM_START_ISO): CoreWorkout {
+  return getWorkoutForDate(new Date(), programStartIso);
 }
 
-export function isProgramStarted(forDate: Date = new Date()): boolean {
-  return getDaysSinceProgramStart(forDate) >= 0;
+export function isProgramStarted(
+  forDate: Date = new Date(),
+  programStartIso: string = DEFAULT_PROGRAM_START_ISO
+): boolean {
+  return getDaysSinceProgramStart(forDate, programStartIso) >= 0;
 }
 
 /** Line shown under the title on the Core tab */
-export function getProgramStatusLabel(forDate: Date = new Date()): string {
-  const days = getDaysSinceProgramStart(forDate);
+export function getProgramStatusLabel(
+  forDate: Date = new Date(),
+  programStartIso: string = DEFAULT_PROGRAM_START_ISO
+): string {
+  const days = getDaysSinceProgramStart(forDate, programStartIso);
   if (days < 0) {
-    return 'Program starts June 1, 2026 · showing preview (Workout A)';
+    return `Program starts ${formatProgramStartLabel(programStartIso)} · preview (Workout A)`;
   }
-  const workout = getWorkoutForDate(forDate);
+  const workout = getWorkoutForDate(forDate, programStartIso);
   return `Workout ${workout.id} · program day ${days + 1}`;
 }
 

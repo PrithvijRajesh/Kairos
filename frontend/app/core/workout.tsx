@@ -16,13 +16,15 @@ import {
   recordCoreWorkoutCompletion,
   saveCoreProgress,
 } from '../../coreProgress';
-import { colors, radius, spacing } from '../../theme';
+import { useTheme } from '../../ThemeContext';
+import { radius, spacing } from '../../theme';
 
 type Phase = 'ready' | 'work' | 'rest';
 type Side = 'left' | 'right';
 
 export default function CoreWorkoutScreen() {
-  const workout = getTodayWorkout();
+  const { colors, programStartDate } = useTheme();
+  const workout = getTodayWorkout(programStartDate);
   const exercises = useMemo(() => getExercisesForWorkout(workout), [workout.id]);
 
   const [exerciseIndex, setExerciseIndex] = useState(0);
@@ -88,14 +90,6 @@ export default function CoreWorkoutScreen() {
     setSecondsLeft(0);
   }, []);
 
-  if (!current) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.text}>No exercises found for this workout.</Text>
-      </View>
-    );
-  }
-
   function formatClock(totalSec: number) {
     const m = Math.floor(totalSec / 60);
     const s = totalSec % 60;
@@ -153,6 +147,16 @@ export default function CoreWorkoutScreen() {
       finishRest();
     }
   }, [secondsLeft, phase, onSetDone, finishRest]);
+
+  const styles = makeStyles(colors);
+
+  if (!current) {
+    return (
+      <View style={[styles.container, { flex: 1, justifyContent: 'center' }]}>
+        <Text style={styles.text}>No exercises found for this workout.</Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -223,7 +227,8 @@ export default function CoreWorkoutScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: ReturnType<typeof useTheme>['colors']) {
+  return StyleSheet.create({
   container: {
     padding: spacing.lg,
     gap: spacing.md,
@@ -314,4 +319,5 @@ const styles = StyleSheet.create({
     color: colors.text,
     textAlign: 'center',
   },
-});
+  });
+}

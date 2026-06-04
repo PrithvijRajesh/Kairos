@@ -5,9 +5,11 @@ import Slider from '@react-native-community/slider';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { loadGoals, saveGoals } from '../storage';
-import { colors, radius, spacing } from '../theme';
+import { useTheme } from '../ThemeContext';
+import { radius, spacing } from '../theme';
 
 export default function HomeScreen() {
+    const { colors } = useTheme();
     const [runningGoal, setRunningGoal] = useState('');
     const [gymGoal, setGymGoal] = useState('');
     const [ runningImportant, setRunningImportant] = useState(100);
@@ -45,6 +47,8 @@ export default function HomeScreen() {
       
       router.push('/dashboard')
     }
+
+    const styles = makeStyles(colors);
 
     return (
         <SafeAreaView style={styles.safeArea}>
@@ -103,7 +107,8 @@ export default function HomeScreen() {
     );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(colors: ReturnType<typeof useTheme>['colors']) {
+  return StyleSheet.create({
     safeArea: {
       flex: 1,
       backgroundColor: colors.background,
@@ -169,7 +174,8 @@ const styles = StyleSheet.create({
       fontSize: 16,
       fontWeight: '700',
     },
-});
+  });
+}
 
 
 

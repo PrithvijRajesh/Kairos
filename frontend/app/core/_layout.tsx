@@ -1,8 +1,10 @@
 // Core section layout: stack navigation between list, workout, and review.
 import { Stack } from 'expo-router';
-import { colors } from '../../theme';
+import { useTheme } from '../../ThemeContext';
 
 export default function CoreLayout() {
+  const { colors } = useTheme();
+
   return (
     <Stack
       screenOptions={{

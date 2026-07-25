@@ -201,3 +201,7 @@ export function getExerciseBonusSeconds(
 ): number {
   return state.entries[exerciseId]?.bonusSec ?? 0;
 }
+
+export function isCoreWorkoutCompletedToday(state: CoreProgressState): boolean {
+  return state.streak.lastCompletedDate === toLocalDateKey();
+}

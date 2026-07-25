@@ -1,6 +1,6 @@
 // Home screen: today's run + gym summary.
 import { useEffect, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, Text, TextInput, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,6 +14,8 @@ export default function HomeScreen() {
     const [gymGoal, setGymGoal] = useState('');
     const [ runningImportant, setRunningImportant] = useState(100);
     const gymImportant = 100 - runningImportant;
+
+    const [saving, setSaving] = useState(false);
 
     useEffect(() => {
       async function initFromStorage() {
@@ -37,15 +39,28 @@ export default function HomeScreen() {
       initFromStorage();
     }, []);
 
-    async function onSavePress(){
-      await saveGoals({
-        runningGoal,
-        gymGoal,
-        runningImportant,
-        gymImportant,
-      });
-      
-      router.push('/dashboard')
+    async function onSavePress() {
+      if (saving) return;
+      setSaving(true);
+      try {
+        const { synced } = await saveGoals({
+          runningGoal,
+          gymGoal,
+          runningImportant,
+          gymImportant,
+        });
+        router.replace('/dashboard');
+        if (!synced) {
+          Alert.alert(
+            'Saved on this device',
+            'Goals saved locally. Start the backend (cd backend && npm run dev) to sync plans and logs.'
+          );
+        }
+      } catch {
+        Alert.alert('Could not save', 'Something went wrong saving your goals.');
+      } finally {
+        setSaving(false);
+      }
     }
 
     const styles = makeStyles(colors);
@@ -99,8 +114,12 @@ export default function HomeScreen() {
                     />
                 </View>
 
-                <Pressable style={styles.button} onPress={onSavePress}>
-                    <Text style={styles.buttonText}>Save Goals</Text>
+                <Pressable
+                  style={[styles.button, saving && styles.buttonDisabled]}
+                  onPress={onSavePress}
+                  disabled={saving}
+                >
+                    <Text style={styles.buttonText}>{saving ? 'Saving...' : 'Save Goals'}</Text>
                 </Pressable>
             </ScrollView>
         </SafeAreaView>
@@ -147,8 +166,8 @@ function makeStyles(colors: ReturnType<typeof useTheme>['colors']) {
       padding: spacing.sm,
       minHeight: 84,
       textAlignVertical: 'top',
-      color: colors.text,
-      backgroundColor: '#fafafa',
+      color: '#111827',
+      backgroundColor: '#ffffff',
     },
     splitBadge: {
       alignSelf: 'flex-start',
@@ -168,6 +187,9 @@ function makeStyles(colors: ReturnType<typeof useTheme>['colors']) {
       borderRadius: radius.md,
       paddingVertical: 14,
       alignItems: 'center',
+    },
+    buttonDisabled: {
+      opacity: 0.6,
     },
     buttonText: {
       color: colors.primaryText,

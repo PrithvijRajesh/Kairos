@@ -1,18 +1,39 @@
 // Dashboard: shows saved goals + split at top, Edit button, and 4 category squares.
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { fetchTodayPlan } from '../api';
+import { toLocalDateKey } from '../coreProgress';
 import { loadGoals, savedGoals } from '../storage';
 import { useTheme } from '../ThemeContext';
+import type { DayPlan } from '../types';
 import { radius, spacing } from '../theme';
 
 export default function DashboardScreen() {
     const { colors } = useTheme();
-    const[goals, setGoals] = useState<savedGoals | null> (null);
-    useEffect(() =>{
-        loadGoals().then(setGoals);
-    }, []);
+    const [goals, setGoals] = useState<savedGoals | null>(null);
+    const [todayPlan, setTodayPlan] = useState<DayPlan | null>(null);
+
+    useFocusEffect(
+      useCallback(() => {
+        let active = true;
+        async function load() {
+          const saved = await loadGoals();
+          if (active) setGoals(saved);
+          try {
+            const data = await fetchTodayPlan(toLocalDateKey());
+            if (active) setTodayPlan(data.plan);
+          } catch {
+            if (active) setTodayPlan(null);
+          }
+        }
+        load();
+        return () => {
+          active = false;
+        };
+      }, [])
+    );
 
     const styles = makeStyles(colors);
 
@@ -47,6 +68,36 @@ export default function DashboardScreen() {
                         <Text style={styles.editButtonText}>Edit Goals</Text>
                     </Pressable>
                 </View>
+
+                <View style={styles.actionsRow}>
+                    <Pressable style={styles.actionChip} onPress={() => router.push('/check-in')}>
+                        <Text style={styles.actionChipText}>Check-in</Text>
+                    </Pressable>
+                    <Pressable style={styles.actionChip} onPress={() => router.push('/week')}>
+                        <Text style={styles.actionChipText}>Week plan</Text>
+                    </Pressable>
+                </View>
+
+                {todayPlan ? (
+                    <View style={styles.todayCard}>
+                        <Text style={styles.cardTitle}>Today ({todayPlan.dayName})</Text>
+                        {todayPlan.isRestDay ? (
+                            <Text style={styles.todayLine}>Rest / mobility day</Text>
+                        ) : (
+                            <>
+                                {todayPlan.run ? (
+                                    <Text style={styles.todayLine}>Run: {todayPlan.run.title}</Text>
+                                ) : null}
+                                {todayPlan.gym ? (
+                                    <Text style={styles.todayLine}>Lift: {todayPlan.gym.title}</Text>
+                                ) : null}
+                            </>
+                        )}
+                        {todayPlan.note ? (
+                            <Text style={styles.todayNote}>{todayPlan.note}</Text>
+                        ) : null}
+                    </View>
+                ) : null}
 
                 <Text style={styles.sectionTitle}>Today's Training</Text>
                 <View style={styles.grid}>
@@ -143,6 +194,40 @@ function makeStyles(colors: ReturnType<typeof useTheme>['colors']) {
     },
     editButtonText: {
         color: colors.primaryText,
+        fontWeight: '600',
+    },
+    actionsRow: {
+        flexDirection: 'row',
+        gap: spacing.sm,
+    },
+    actionChip: {
+        borderWidth: 1,
+        borderColor: colors.border,
+        borderRadius: radius.sm,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
+        backgroundColor: colors.surface,
+    },
+    actionChipText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: colors.text,
+    },
+    todayCard: {
+        backgroundColor: colors.accentSoft,
+        borderRadius: radius.md,
+        borderWidth: 1,
+        borderColor: '#bfdbfe',
+        padding: spacing.md,
+        gap: spacing.xs,
+    },
+    todayLine: {
+        fontSize: 15,
+        color: colors.text,
+    },
+    todayNote: {
+        fontSize: 13,
+        color: colors.accent,
         fontWeight: '600',
     },
     sectionTitle: {

@@ -9,7 +9,11 @@ import {
   formatPrescription,
   getProgramStatusLabel,
 } from '../../coreWorkouts';
-import { getExerciseLevel, loadCoreProgress } from '../../coreProgress';
+import {
+  getExerciseLevel,
+  isCoreWorkoutCompletedToday,
+  loadCoreProgress,
+} from '../../coreProgress';
 import { useTheme } from '../../ThemeContext';
 import { radius, spacing } from '../../theme';
 
@@ -19,6 +23,8 @@ export default function CoreScreen() {
   const exercises = getExercisesForWorkout(workout);
   const [levels, setLevels] = useState<Record<string, 1 | 2 | 3>>({});
   const [currentStreak, setCurrentStreak] = useState(0);
+  const [longestStreak, setLongestStreak] = useState(0);
+  const [completedToday, setCompletedToday] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -32,6 +38,8 @@ export default function CoreScreen() {
         }
         setLevels(nextLevels);
         setCurrentStreak(state.streak.currentStreak);
+        setLongestStreak(state.streak.longestStreak);
+        setCompletedToday(isCoreWorkoutCompletedToday(state));
       }
       loadLevels();
       return () => {
@@ -50,13 +58,30 @@ export default function CoreScreen() {
         <Text style={styles.subtitle}>{workout.focus}</Text>
         <Text style={styles.meta}>{getProgramStatusLabel(new Date(), programStartDate)}</Text>
         <Text style={styles.meta}>~{workout.estimatedMin} min</Text>
-        {currentStreak > 0 ? (
-          <Text style={styles.streakBadge}>
-            {currentStreak} day streak
-          </Text>
+
+        {completedToday ? (
+          <View style={styles.completedCard}>
+            <Text style={styles.completedTitle}>Workout completed for today</Text>
+            <Text style={styles.completedSubtitle}>
+              Nice work — come back tomorrow for your next session.
+            </Text>
+            <View style={styles.streakRow}>
+              <View style={styles.streakStat}>
+                <Text style={styles.streakValue}>{currentStreak}</Text>
+                <Text style={styles.streakLabel}>day streak</Text>
+              </View>
+              <View style={styles.streakStat}>
+                <Text style={styles.streakValue}>{longestStreak}</Text>
+                <Text style={styles.streakLabel}>longest</Text>
+              </View>
+            </View>
+          </View>
+        ) : currentStreak > 0 ? (
+          <Text style={styles.streakBadge}>{currentStreak} day streak</Text>
         ) : null}
 
-        {exercises.map((exercise) => (
+        {!completedToday
+          ? exercises.map((exercise) => (
           <View key={exercise.id} style={styles.card}>
             <Text style={styles.exerciseName}>{exercise.name}</Text>
             <Text style={styles.exercisePrescription}>
@@ -71,14 +96,18 @@ export default function CoreScreen() {
               <Text style={styles.note}>{exercise.stopIf}</Text>
             ) : null}
           </View>
-        ))}
+            ))
+          : null}
 
-        <Pressable
-          style={styles.startButton}
-          onPress={() => router.push('/core/workout')}
-        >
-          <Text style={styles.startButtonText}>Start workout</Text>
-        </Pressable>
+        {completedToday ? (
+          <Pressable style={styles.dashboardButton} onPress={() => router.replace('/dashboard')}>
+            <Text style={styles.dashboardButtonText}>Back to Dashboard</Text>
+          </Pressable>
+        ) : (
+          <Pressable style={styles.startButton} onPress={() => router.push('/core/workout')}>
+            <Text style={styles.startButtonText}>Start workout</Text>
+          </Pressable>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -130,6 +159,61 @@ function makeStyles(colors: ReturnType<typeof useTheme>['colors']) {
     paddingVertical: spacing.xs,
     borderRadius: radius.sm,
     marginBottom: spacing.sm,
+  },
+  completedCard: {
+    backgroundColor: colors.accentSoft,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    padding: spacing.lg,
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  completedTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  completedSubtitle: {
+    fontSize: 15,
+    color: colors.textMuted,
+  },
+  streakRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginTop: spacing.sm,
+  },
+  streakStat: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  streakValue: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: colors.accent,
+  },
+  streakLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textMuted,
+  },
+  dashboardButton: {
+    marginTop: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingVertical: 14,
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+  },
+  dashboardButtonText: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '700',
   },
   card: {
     backgroundColor: colors.surface,

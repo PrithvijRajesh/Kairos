@@ -72,7 +72,7 @@ export default function CoreReviewScreen() {
           const currentState = await loadCoreProgress();
           const nextState = applySessionFeels(currentState, exercises, feels);
           await saveCoreProgress(nextState);
-          router.replace('/core');
+          router.replace('/dashboard');
           setIsSaving(false);
         }}
       >

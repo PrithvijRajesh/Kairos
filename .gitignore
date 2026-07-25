@@ -5,3 +5,6 @@ dist/
 .env.local
 *.log
 .DS_Store
+backend/kairos.db
+backend/kairos.db-wal
+backend/kairos.db-shm

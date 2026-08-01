@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../ThemeContext';
-import { isValidDateKey } from '../settingsStorage';
+import { isValidDateKey, loadAppSettings, saveAppSettings } from '../settingsStorage';
 import { formatProgramStartLabel } from '../coreWorkouts';
 import { spacing, radius } from '../theme';
 import { toLocalDateKey } from '../coreProgress';
@@ -28,11 +28,16 @@ export default function SettingsScreen() {
   } = useTheme();
 
   const [startDateInput, setStartDateInput] = useState(programStartDate);
+  const [sheetsUrl, setSheetsUrl] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     setStartDateInput(programStartDate);
   }, [programStartDate]);
+
+  useEffect(() => {
+    loadAppSettings().then((s) => setSheetsUrl(s.sheetsWebhookUrl));
+  }, []);
 
   const styles = makeStyles(colors);
 
@@ -54,6 +59,19 @@ export default function SettingsScreen() {
     setStartDateInput(next.programStartDate);
     setIsSaving(false);
     Alert.alert('Plan reset', 'Your core program now starts today (Workout A).');
+  }
+
+  async function handleSaveSheetsUrl() {
+    setIsSaving(true);
+    const base = await loadAppSettings();
+    await saveAppSettings({ ...base, sheetsWebhookUrl: sheetsUrl.trim() });
+    setIsSaving(false);
+    Alert.alert(
+      'Saved',
+      sheetsUrl.trim()
+        ? 'Google Sheets URL saved. Use Lift → Worksheet → Send today’s rows.'
+        : 'Google Sheets URL cleared.'
+    );
   }
 
   return (
@@ -95,6 +113,27 @@ export default function SettingsScreen() {
             Today is {toLocalDateKey(new Date())}. Reset sets start to today and
             Workout A.
           </Text>
+        </View>
+
+        <Text style={styles.sectionTitle}>Google Sheets (lift log)</Text>
+        <View style={styles.card}>
+          <Text style={styles.label}>Web app URL</Text>
+          <Text style={styles.hint}>
+            Tabs: Push / Pull / Legs / Upper / Lower + Progress. Paste the Apps Script deploy
+            URL from frontend/googleSheetsAppsScript.js setup.
+          </Text>
+          <TextInput
+            style={styles.input}
+            value={sheetsUrl}
+            onChangeText={setSheetsUrl}
+            placeholder="https://script.google.com/macros/s/…/exec"
+            placeholderTextColor={colors.textMuted}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <Pressable style={styles.button} onPress={handleSaveSheetsUrl} disabled={isSaving}>
+            <Text style={styles.buttonText}>Save Sheets URL</Text>
+          </Pressable>
         </View>
 
         <Text style={styles.sectionTitle}>Appearance</Text>

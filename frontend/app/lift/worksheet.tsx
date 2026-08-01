@@ -26,6 +26,11 @@ import {
   importWorksheetAndSave,
   shareWorksheet,
 } from '../../gymWorksheet';
+import {
+  buildBlankLogRows,
+  sendRowsToGoogleSheet,
+} from '../../googleSheetsLog';
+import { loadAppSettings } from '../../settingsStorage';
 import { useTheme } from '../../ThemeContext';
 import { radius, spacing } from '../../theme';
 
@@ -35,13 +40,16 @@ export default function LiftWorksheetScreen() {
   const [startWeights, setStartWeights] = useState<Record<string, number | null>>({});
   const [importText, setImportText] = useState('');
   const [busy, setBusy] = useState(false);
+  const [hasSheetsUrl, setHasSheetsUrl] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
       let active = true;
       async function load() {
         const state = await ensureLiftProgramStart(false);
+        const settings = await loadAppSettings();
         if (!active || !state.programStartDate) return;
+        setHasSheetsUrl(!!settings.sheetsWebhookUrl.trim());
         const today = getScheduleForDate(new Date(), state.programStartDate);
         const swaps = await loadTodaysSwaps();
         if (today.kind === 'lift') {
@@ -64,6 +72,28 @@ export default function LiftWorksheetScreen() {
   );
 
   const styles = makeStyles(colors);
+
+  async function onSendToSheets() {
+    if (!schedule || schedule.kind !== 'lift') {
+      Alert.alert('Rest day', 'No lift rows to send today.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const rows = buildBlankLogRows(schedule, startWeights);
+      const result = await sendRowsToGoogleSheet(rows);
+      if (!result.ok) {
+        Alert.alert('Could not send', result.error);
+        return;
+      }
+      Alert.alert(
+        'Sent to Google Sheets',
+        `${result.message}\n\nOpen the Log tab on your phone, fill Weight / Reps / Feel at the gym. Check the Progress tab anytime for last weights.`
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function onExport() {
     if (!schedule || schedule.kind !== 'lift') {
@@ -125,33 +155,51 @@ export default function LiftWorksheetScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <Text style={styles.title}>Gym worksheet</Text>
+        <Text style={styles.title}>Gym log</Text>
         <Text style={styles.subtitle}>
-          Expo Go needs your home PC. For the gym, export a sheet at home, fill it offline, import
-          when you get back.
+          Sends today’s sets to the matching tab (Push, Pull, Legs, Upper, or Lower). At the
+          gym fill Weight / Reps / Feel on that tab. Progress = last weight per exercise.
         </Text>
 
         {schedule?.kind === 'lift' ? (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>{schedule.label}</Text>
             <Text style={styles.cardBody}>
-              {schedule.workout.exercises.length} exercises · CSV opens in Excel / Sheets / Notes
+              {schedule.workout.exercises.length} exercises → blank rows ready to fill
             </Text>
           </View>
         ) : (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Rest day</Text>
-            <Text style={styles.cardBody}>No lift sheet to export today.</Text>
+            <Text style={styles.cardBody}>No lift rows to send today.</Text>
           </View>
         )}
 
-        <Text style={styles.section}>At home — before the gym</Text>
+        <Text style={styles.section}>Google Sheets (recommended)</Text>
+        {!hasSheetsUrl ? (
+          <Text style={styles.hint}>
+            First: create a Sheet, paste frontend/googleSheetsAppsScript.js into Apps Script,
+            Deploy as Web app, then paste the URL in Settings.
+          </Text>
+        ) : null}
         <Pressable
           style={[styles.primaryBtn, busy && styles.disabled]}
+          onPress={onSendToSheets}
+          disabled={busy || schedule?.kind !== 'lift'}
+        >
+          <Text style={styles.primaryBtnText}>Send today’s rows to Sheets</Text>
+        </Pressable>
+        <Text style={styles.hint}>
+          Needs home Wi‑Fi once. Then use Google Sheets offline/on cell data at the gym — no Expo.
+        </Text>
+
+        <Text style={styles.section}>Backup: share file</Text>
+        <Pressable
+          style={[styles.secondaryBtn, busy && styles.disabled]}
           onPress={onExport}
           disabled={busy || schedule?.kind !== 'lift'}
         >
-          <Text style={styles.primaryBtnText}>Export worksheet</Text>
+          <Text style={styles.secondaryBtnText}>Export worksheet</Text>
         </Pressable>
         <Pressable
           style={[styles.secondaryBtn, busy && styles.disabled]}
@@ -160,12 +208,8 @@ export default function LiftWorksheetScreen() {
         >
           <Text style={styles.secondaryBtnText}>Share CSV only</Text>
         </Pressable>
-        <Text style={styles.hint}>
-          Save to Files, email yourself, or open in Excel. Fill weight_lbs, reps, and feel
-          (easy / perfect / hard). Leave unused sets blank.
-        </Text>
 
-        <Text style={styles.section}>At home — after the gym</Text>
+        <Text style={styles.section}>Optional: import CSV into Kairos</Text>
         <TextInput
           style={styles.input}
           value={importText}

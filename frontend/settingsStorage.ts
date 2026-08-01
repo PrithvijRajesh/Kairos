@@ -10,11 +10,14 @@ export type ThemeMode = 'light' | 'dark';
 export type AppSettings = {
   programStartDate: string; // YYYY-MM-DD, day 0 = Workout A
   themeMode: ThemeMode;
+  /** Google Apps Script web app URL for lift Log sheet */
+  sheetsWebhookUrl: string;
 };
 
 const DEFAULT_SETTINGS: AppSettings = {
   programStartDate: '2026-06-01',
   themeMode: 'light',
+  sheetsWebhookUrl: '',
 };
 
 export async function loadAppSettings(): Promise<AppSettings> {
@@ -27,6 +30,7 @@ export async function loadAppSettings(): Promise<AppSettings> {
     return {
       programStartDate: parsed.programStartDate ?? DEFAULT_SETTINGS.programStartDate,
       themeMode: parsed.themeMode ?? DEFAULT_SETTINGS.themeMode,
+      sheetsWebhookUrl: parsed.sheetsWebhookUrl ?? DEFAULT_SETTINGS.sheetsWebhookUrl,
     };
   } catch {
     return { ...DEFAULT_SETTINGS };

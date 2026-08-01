@@ -215,11 +215,11 @@ export default function LiftScreen() {
               <Text style={styles.primaryBtnText}>Start workout</Text>
             </Pressable>
             <Pressable style={styles.secondaryBtn} onPress={() => router.push('/lift/worksheet')}>
-              <Text style={styles.secondaryBtnText}>Export gym worksheet</Text>
+              <Text style={styles.secondaryBtnText}>Send to Google Sheets</Text>
             </Pressable>
             <Text style={styles.sheetHint}>
-              Going to the gym without home Wi‑Fi? Export a sheet here, fill it offline, import when
-              you get back.
+              At home: send today’s set rows to Sheets. At the gym: fill Weight / Reps / Feel in the
+              Sheets app. Progress tab shows your lifts over time.
             </Text>
           </>
         ) : (

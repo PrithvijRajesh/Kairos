@@ -12,6 +12,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../ThemeContext';
+import { ensureLiftProgramStart, loadGymProgress, setLiftProgramStartDate } from '../gymProgress';
+import { KAIROS_PROGRAM_START } from '../programConfig';
+import { resetBothProgramsToStart } from '../programMigration';
 import { isValidDateKey, loadAppSettings, saveAppSettings } from '../settingsStorage';
 import { formatProgramStartLabel } from '../coreWorkouts';
 import { spacing, radius } from '../theme';
@@ -25,9 +28,11 @@ export default function SettingsScreen() {
     setThemeMode,
     setProgramStartDate,
     resetPlanStartToday,
+    refreshSettings,
   } = useTheme();
 
   const [startDateInput, setStartDateInput] = useState(programStartDate);
+  const [liftStartInput, setLiftStartInput] = useState(KAIROS_PROGRAM_START);
   const [sheetsUrl, setSheetsUrl] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
@@ -36,6 +41,9 @@ export default function SettingsScreen() {
   }, [programStartDate]);
 
   useEffect(() => {
+    loadGymProgress().then((s) => {
+      if (s.programStartDate) setLiftStartInput(s.programStartDate);
+    });
     loadAppSettings().then((s) => setSheetsUrl(s.sheetsWebhookUrl));
   }, []);
 
@@ -61,6 +69,39 @@ export default function SettingsScreen() {
     Alert.alert('Plan reset', 'Your core program now starts today (Workout A).');
   }
 
+  async function handleResetLiftToday() {
+    setIsSaving(true);
+    await ensureLiftProgramStart(true);
+    setLiftStartInput(toLocalDateKey());
+    setIsSaving(false);
+    Alert.alert('Lift reset', 'Lift program Day 1 (Push) starts today.');
+  }
+
+  async function handleSaveLiftStartDate() {
+    const trimmed = liftStartInput.trim();
+    if (!isValidDateKey(trimmed)) {
+      Alert.alert('Invalid date', 'Use format YYYY-MM-DD (example: 2026-08-23).');
+      return;
+    }
+    setIsSaving(true);
+    await setLiftProgramStartDate(trimmed);
+    setIsSaving(false);
+    Alert.alert('Saved', `Lift Day 1 (Push) = ${formatProgramStartLabel(trimmed)}.`);
+  }
+
+  async function handleResetBothToProgramStart() {
+    setIsSaving(true);
+    await resetBothProgramsToStart();
+    await refreshSettings();
+    setStartDateInput(KAIROS_PROGRAM_START);
+    setLiftStartInput(KAIROS_PROGRAM_START);
+    setIsSaving(false);
+    Alert.alert(
+      'Programs aligned',
+      `Core Workout A and Lift Push both start ${formatProgramStartLabel(KAIROS_PROGRAM_START)} (Sunday).`
+    );
+  }
+
   async function handleSaveSheetsUrl() {
     setIsSaving(true);
     const base = await loadAppSettings();
@@ -77,6 +118,20 @@ export default function SettingsScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.container}>
+        <Text style={styles.sectionTitle}>Programs</Text>
+        <View style={styles.card}>
+          <Text style={styles.hint}>
+            Official start: Sunday Aug 23, 2026 — Core Workout A + Lift Push (Day 1).
+          </Text>
+          <Pressable
+            style={styles.button}
+            onPress={handleResetBothToProgramStart}
+            disabled={isSaving}
+          >
+            <Text style={styles.buttonText}>Set both to Sun Aug 23, 2026</Text>
+          </Pressable>
+        </View>
+
         <Text style={styles.sectionTitle}>Core program</Text>
         <View style={styles.card}>
           <Text style={styles.label}>Program start date</Text>
@@ -113,6 +168,35 @@ export default function SettingsScreen() {
             Today is {toLocalDateKey(new Date())}. Reset sets start to today and
             Workout A.
           </Text>
+        </View>
+
+        <Text style={styles.sectionTitle}>Lift program</Text>
+        <View style={styles.card}>
+          <Text style={styles.hint}>
+            Push → Pull → Legs → Rest → Upper → Lower → Rest. Separate start date from Core.
+          </Text>
+          <Text style={styles.current}>
+            Current: {formatProgramStartLabel(liftStartInput)} (Day 1 = Push)
+          </Text>
+          <TextInput
+            style={styles.input}
+            value={liftStartInput}
+            onChangeText={setLiftStartInput}
+            placeholder="YYYY-MM-DD"
+            placeholderTextColor={colors.textMuted}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <Pressable style={styles.button} onPress={handleSaveLiftStartDate} disabled={isSaving}>
+            <Text style={styles.buttonText}>Save lift start date</Text>
+          </Pressable>
+          <Pressable
+            style={styles.secondaryButton}
+            onPress={handleResetLiftToday}
+            disabled={isSaving}
+          >
+            <Text style={styles.secondaryButtonText}>Reset lift so today is Push (Day 1)</Text>
+          </Pressable>
         </View>
 
         <Text style={styles.sectionTitle}>Google Sheets (lift log)</Text>

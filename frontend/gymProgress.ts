@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { submitGymLog } from './api';
 import { toLocalDateKey } from './coreProgress';
+import { KAIROS_PROGRAM_START } from './programConfig';
 import type { GymExercise } from './gymWorkouts';
 
 const GYM_PROGRESS_KEY = 'kairos.gym.progress.v2';
@@ -106,8 +107,8 @@ export async function saveGymProgress(state: GymProgressState): Promise<void> {
 
 /**
  * Ensures the lift program has a start date.
- * First launch → today becomes Day 1 (Push).
- * Pass forceToday to restart the program from today.
+ * First launch → KAIROS_PROGRAM_START (Sun Aug 23, 2026) unless already set.
+ * Pass forceToday to restart from today; use setLiftProgramStartDate for a specific date.
  */
 export async function ensureLiftProgramStart(forceToday = false): Promise<GymProgressState> {
   const state = await loadGymProgress();
@@ -116,7 +117,17 @@ export async function ensureLiftProgramStart(forceToday = false): Promise<GymPro
   }
   const next: GymProgressState = {
     ...state,
-    programStartDate: toLocalDateKey(new Date()),
+    programStartDate: forceToday ? toLocalDateKey(new Date()) : KAIROS_PROGRAM_START,
+  };
+  await saveGymProgress(next);
+  return next;
+}
+
+export async function setLiftProgramStartDate(dateKey: string): Promise<GymProgressState> {
+  const state = await loadGymProgress();
+  const next: GymProgressState = {
+    ...state,
+    programStartDate: dateKey,
   };
   await saveGymProgress(next);
   return next;

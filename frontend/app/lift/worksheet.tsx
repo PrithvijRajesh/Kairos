@@ -17,6 +17,7 @@ import { toLocalDateKey } from '../../coreProgress';
 import {
   ensureLiftProgramStart,
   getSuggestedStartWeight,
+  loadGymProgress,
 } from '../../gymProgress';
 import { getScheduleForDate, type DaySchedule } from '../../gymWorkouts';
 import { applySwapsToWorkout, loadTodaysSwaps } from '../../gymSwaps';
@@ -28,6 +29,7 @@ import {
 } from '../../gymWorksheet';
 import {
   buildBlankLogRows,
+  buildFilledLogRows,
   sendRowsToGoogleSheet,
 } from '../../googleSheetsLog';
 import { loadAppSettings } from '../../settingsStorage';
@@ -82,14 +84,38 @@ export default function LiftWorksheetScreen() {
     try {
       const rows = buildBlankLogRows(schedule, startWeights);
       const result = await sendRowsToGoogleSheet(rows);
-      if (!result.ok) {
+      if (result.ok === false) {
         Alert.alert('Could not send', result.error);
         return;
       }
       Alert.alert(
         'Sent to Google Sheets',
-        `${result.message}\n\nOpen the Log tab on your phone, fill Weight / Reps / Feel at the gym. Check the Progress tab anytime for last weights.`
+        `${result.message}\n\nOpen today’s workout tab (Push / Pull / …), fill Weight / Reps / Feel. Progress updates on send.`
       );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onSendFilledSession() {
+    setBusy(true);
+    try {
+      const state = await loadGymProgress();
+      const latest = state.sessions[0];
+      if (!latest || latest.date !== toLocalDateKey()) {
+        Alert.alert(
+          'No session today',
+          'Complete a lift in the app first, or send blank rows to fill in Sheets.'
+        );
+        return;
+      }
+      const rows = buildFilledLogRows(latest);
+      const result = await sendRowsToGoogleSheet(rows);
+      if (result.ok === false) {
+        Alert.alert('Could not send', result.error);
+        return;
+      }
+      Alert.alert('Sent', result.message);
     } finally {
       setBusy(false);
     }
@@ -137,7 +163,7 @@ export default function LiftWorksheetScreen() {
     setBusy(true);
     try {
       const result = await importWorksheetAndSave(importText);
-      if (!result.ok) {
+      if (result.ok === false) {
         Alert.alert('Import failed', result.error);
         return;
       }
@@ -187,7 +213,14 @@ export default function LiftWorksheetScreen() {
           onPress={onSendToSheets}
           disabled={busy || schedule?.kind !== 'lift'}
         >
-          <Text style={styles.primaryBtnText}>Send today’s rows to Sheets</Text>
+          <Text style={styles.primaryBtnText}>Send today’s blank rows to Sheets</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.secondaryBtn, busy && styles.disabled]}
+          onPress={onSendFilledSession}
+          disabled={busy}
+        >
+          <Text style={styles.secondaryBtnText}>Send completed session to Sheets</Text>
         </Pressable>
         <Text style={styles.hint}>
           Needs home Wi‑Fi once. Then use Google Sheets offline/on cell data at the gym — no Expo.

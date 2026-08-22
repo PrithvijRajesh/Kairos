@@ -13,9 +13,11 @@ import {
   loadAppSettings,
   resetProgramStartToday,
   saveAppSettings,
+  setProgramStartDate,
   type AppSettings,
   type ThemeMode,
 } from './settingsStorage';
+import { runProgramMigrationIfNeeded } from './programMigration';
 import { getColors, type ThemeColors } from './theme';
 
 type ThemeContextValue = {
@@ -25,7 +27,7 @@ type ThemeContextValue = {
   isReady: boolean;
   setThemeMode: (mode: ThemeMode) => Promise<void>;
   setProgramStartDate: (dateKey: string) => Promise<void>;
-  resetPlanStartToday: () => Promise<void>;
+  resetPlanStartToday: () => Promise<AppSettings>;
   refreshSettings: () => Promise<void>;
 };
 
@@ -35,6 +37,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<AppSettings | null>(null);
 
   const refreshSettings = useCallback(async () => {
+    await runProgramMigrationIfNeeded();
     const loaded = await loadAppSettings();
     setSettings(loaded);
   }, []);
@@ -66,6 +69,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const resetPlanStartToday = useCallback(async () => {
     const next = await resetProgramStartToday();
     setSettings(next);
+    return next;
   }, []);
 
   const value = useMemo<ThemeContextValue | null>(() => {

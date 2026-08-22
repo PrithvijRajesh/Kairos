@@ -1,4 +1,5 @@
-// Core workout data only (exercise names, sets, reps) — no UI in this file.
+// Core workout data — 4-day rotation (A→B→C→D) for bracing, abs, and run stability.
+import { KAIROS_PROGRAM_START } from './programConfig';
 export type progressionType = 'reps' | 'time';
 
 export type exerciseLevel = {
@@ -292,21 +293,41 @@ export const coreExerciseLibrary: Record<string, CoreExerciseTemplate> = {
     ],
   },
 
-  wall_sit: {
-    id: 'wall_sit',
-    name: 'Wall sit',
+  pallof_press: {
+    id: 'pallof_press',
+    name: 'Pallof press (band or cable)',
     type: 'time',
-    sets: 2,
-    restSec: 60,
+    sets: 3,
+    restSec: 45,
     cues: [
-      'Back flat on wall, knees ~90°',
-      'Weight even on both feet',
-      'Breathe — don’t hold breath',
+      'Stand sideways to anchor, hands at chest',
+      'Press straight out — resist rotation',
+      'Ribs down, glutes lightly on',
     ],
+    stopIf: 'Stop if low back twists or shoulders roll forward.',
     levels: [
-      { level: 1, label: 'Standard', holdSec: 30 },
-      { level: 2, label: 'Longer', holdSec: 45 },
-      { level: 3, label: 'Endurance', holdSec: 60 },
+      { level: 1, label: 'Standard', holdSecPerSide: 12 },
+      { level: 2, label: 'Longer', holdSecPerSide: 15 },
+      { level: 3, label: 'Heavier band', holdSecPerSide: 18 },
+    ],
+  },
+
+  leg_lowers: {
+    id: 'leg_lowers',
+    name: 'Leg lowers (bent knees)',
+    type: 'reps',
+    sets: 3,
+    restSec: 45,
+    cues: [
+      'Low back pressed into floor the whole rep',
+      'Lower legs slow — stop before back arches',
+      'Exhale on the way down',
+    ],
+    stopIf: 'Stop if low back lifts off the floor.',
+    levels: [
+      { level: 1, label: 'Standard', totalReps: 8 },
+      { level: 2, label: 'More reps', totalReps: 10 },
+      { level: 3, label: 'Control focus', totalReps: 12 },
     ],
   },
 };
@@ -315,37 +336,37 @@ export const coreExerciseLibrary: Record<string, CoreExerciseTemplate> = {
 
 export const workoutA: CoreWorkout = {
   id: 'A',
-  title: 'Foundation A',
-  focus: 'Anti-extension and bracing — build a stable trunk',
-  estimatedMin: 15,
+  title: 'Bracing A',
+  focus: 'Anti-extension — stable trunk for lifts and running',
+  estimatedMin: 16,
   exerciseIds: [
     'dead_bug',
-    'bird_dog',
     'front_plank',
     'side_plank',
     'glute_bridge',
+    'hollow_hold',
   ],
 };
 
 export const workoutB: CoreWorkout = {
   id: 'B',
   title: 'Anti-rotation B',
-  focus: 'Resist twisting — trunk stiffness for run and lift',
-  estimatedMin: 16,
+  focus: 'Resist twisting + lower abs — gait stability',
+  estimatedMin: 17,
   exerciseIds: [
-    'dead_bug',
+    'pallof_press',
+    'bird_dog',
     'windshield_wiper',
-    'side_plank',
-    'bear_hold',
     'reverse_crunch',
+    'leg_lowers',
   ],
 };
 
 export const workoutC: CoreWorkout = {
   id: 'C',
-  title: 'Lateral & hips C',
-  focus: 'Side chain and pelvis — stability for running',
-  estimatedMin: 16,
+  title: 'Run stability C',
+  focus: 'Hips & lateral chain — single-leg support',
+  estimatedMin: 17,
   exerciseIds: [
     'side_plank',
     'clamshell',
@@ -357,20 +378,20 @@ export const workoutC: CoreWorkout = {
 
 export const workoutD: CoreWorkout = {
   id: 'D',
-  title: 'Endurance D',
-  focus: 'Bracing under fatigue — maintain form when tired',
-  estimatedMin: 15,
+  title: 'Core endurance D',
+  focus: 'Hold form under fatigue — late-run / end of session',
+  estimatedMin: 16,
   exerciseIds: [
-    'hollow_hold',
     'front_plank',
     'bird_dog_hold',
+    'bear_hold',
     'dead_bug',
-    'wall_sit',
+    'glute_bridge',
   ],
 };
 
 /** Default program start if settings not loaded yet */
-export const DEFAULT_PROGRAM_START_ISO = '2026-06-01';
+export const DEFAULT_PROGRAM_START_ISO = KAIROS_PROGRAM_START;
 
 export const coreWorkoutRotation: CoreWorkout[] = [
   workoutA,

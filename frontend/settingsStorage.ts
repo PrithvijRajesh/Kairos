@@ -2,6 +2,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { toLocalDateKey } from './coreProgress';
+import { KAIROS_PROGRAM_START } from './programConfig';
 
 const SETTINGS_KEY = 'kairos.settings.v1';
 
@@ -15,7 +16,7 @@ export type AppSettings = {
 };
 
 const DEFAULT_SETTINGS: AppSettings = {
-  programStartDate: '2026-06-01',
+  programStartDate: KAIROS_PROGRAM_START,
   themeMode: 'light',
   sheetsWebhookUrl: '',
 };
@@ -45,6 +46,16 @@ export async function resetProgramStartToday(): Promise<AppSettings> {
   const next: AppSettings = {
     ...(await loadAppSettings()),
     programStartDate: toLocalDateKey(new Date()),
+  };
+  await saveAppSettings(next);
+  return next;
+}
+
+/** Set Core program start to a specific date (YYYY-MM-DD). */
+export async function setProgramStartDate(dateKey: string): Promise<AppSettings> {
+  const next: AppSettings = {
+    ...(await loadAppSettings()),
+    programStartDate: dateKey,
   };
   await saveAppSettings(next);
   return next;

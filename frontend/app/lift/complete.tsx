@@ -1,8 +1,13 @@
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Alert, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 
-import { loadGymProgress } from '../../gymProgress';
+import {
+  buildFilledLogRows,
+  sendRowsToGoogleSheet,
+} from '../../googleSheetsLog';
+import { loadGymProgress, syncUnsyncedSessions } from '../../gymProgress';
+import { loadAppSettings } from '../../settingsStorage';
 import { useTheme } from '../../ThemeContext';
 import { radius, spacing } from '../../theme';
 
@@ -11,19 +16,45 @@ export default function LiftCompleteScreen() {
   const [currentStreak, setCurrentStreak] = useState(0);
   const [synced, setSynced] = useState(false);
   const [lastTitle, setLastTitle] = useState('Lift');
+  const [hasSheets, setHasSheets] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    loadGymProgress().then((state) => {
-      setCurrentStreak(state.streak.currentStreak);
-      const latest = state.sessions[0];
-      if (latest) {
-        setSynced(!!latest.synced);
-        setLastTitle(latest.workoutTitle);
+    Promise.all([loadGymProgress(), loadAppSettings(), syncUnsyncedSessions()]).then(
+      ([state, settings]) => {
+        setCurrentStreak(state.streak.currentStreak);
+        setHasSheets(!!settings.sheetsWebhookUrl.trim());
+        const latest = state.sessions[0];
+        if (latest) {
+          setSynced(!!latest.synced);
+          setLastTitle(latest.workoutTitle);
+        }
       }
-    });
+    );
   }, []);
 
   const styles = makeStyles(colors);
+
+  async function onSendFilledToSheets() {
+    setBusy(true);
+    try {
+      const state = await loadGymProgress();
+      const latest = state.sessions[0];
+      if (!latest) {
+        Alert.alert('Nothing to send', 'No completed session found.');
+        return;
+      }
+      const rows = buildFilledLogRows(latest);
+      const result = await sendRowsToGoogleSheet(rows);
+      if (result.ok === false) {
+        Alert.alert('Could not send', result.error);
+        return;
+      }
+      Alert.alert('Sent to Sheets', result.message);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <View style={styles.container}>
@@ -44,6 +75,32 @@ export default function LiftCompleteScreen() {
             : 'Offline log — will sync when you’re home with the API running'}
         </Text>
       </View>
+
+      {hasSheets ? (
+        <Pressable
+          style={[styles.secondaryBtn, busy && styles.disabled]}
+          onPress={onSendFilledToSheets}
+          disabled={busy}
+        >
+          {busy ? (
+            <ActivityIndicator color={colors.text} />
+          ) : (
+            <Text style={styles.secondaryBtnText}>Send filled sets to Google Sheets</Text>
+          )}
+        </Pressable>
+      ) : null}
+
+      <Pressable
+        style={styles.secondaryBtn}
+        onPress={() =>
+          router.push({
+            pathname: '/log-gym',
+            params: { workoutId: lastTitle.toLowerCase().replace(/\s+/g, '_') },
+          })
+        }
+      >
+        <Text style={styles.secondaryBtnText}>Add notes to API log</Text>
+      </Pressable>
 
       <Pressable style={styles.button} onPress={() => router.replace('/dashboard')}>
         <Text style={styles.buttonText}>Back to Dashboard</Text>
@@ -89,5 +146,15 @@ function makeStyles(colors: ReturnType<typeof useTheme>['colors']) {
       alignItems: 'center',
     },
     buttonText: { color: colors.primaryText, fontWeight: '700', fontSize: 16 },
+    secondaryBtn: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.md,
+      paddingVertical: 12,
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+    },
+    secondaryBtnText: { color: colors.text, fontWeight: '600', fontSize: 15 },
+    disabled: { opacity: 0.5 },
   });
 }

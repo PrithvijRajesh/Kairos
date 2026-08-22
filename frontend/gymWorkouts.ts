@@ -1,5 +1,7 @@
 // Your programmed lift split — calendar-based, fully offline.
 
+import { formatProgramStartLabel } from './coreWorkouts';
+
 export type ExerciseAlternative = {
   /** Unique id so weight history stays separate from the primary lift */
   id: string;
@@ -768,7 +770,7 @@ function parseDateKey(dateKey: string): Date {
   return new Date(year, month - 1, day);
 }
 
-/** Days since program start (0 = Day 1 / Push). */
+/** Days since program start (0 = Day 1 / Push). Negative = before start. */
 export function getLiftProgramDayIndex(
   forDate: Date = new Date(),
   programStartIso: string
@@ -776,7 +778,14 @@ export function getLiftProgramDayIndex(
   const start = startOfLocalDay(parseDateKey(programStartIso));
   const current = startOfLocalDay(forDate);
   const msPerDay = 24 * 60 * 60 * 1000;
-  return Math.max(0, Math.round((current.getTime() - start.getTime()) / msPerDay));
+  return Math.round((current.getTime() - start.getTime()) / msPerDay);
+}
+
+export function isLiftProgramStarted(
+  forDate: Date = new Date(),
+  programStartIso: string
+): boolean {
+  return getLiftProgramDayIndex(forDate, programStartIso) >= 0;
 }
 
 /**
@@ -788,9 +797,18 @@ export function getScheduleForDate(
   programStartIso: string
 ): DaySchedule {
   const dayIndex = getLiftProgramDayIndex(forDate, programStartIso);
+  const weekday = DAY_NAMES[forDate.getDay()];
+
+  if (dayIndex < 0) {
+    return {
+      kind: 'rest',
+      label: `Program starts ${formatProgramStartLabel(programStartIso)} · preview (Push)`,
+      hint: `${weekday}. Day 1 is Push when the program starts.`,
+    };
+  }
+
   const programDay = dayIndex + 1; // 1-based for UI
   const slot = PROGRAM_ROTATION[dayIndex % PROGRAM_ROTATION.length];
-  const weekday = DAY_NAMES[forDate.getDay()];
 
   if (slot.kind === 'rest') {
     return {

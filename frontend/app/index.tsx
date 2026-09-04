@@ -10,9 +10,9 @@ import { radius, spacing } from '../theme';
 
 export default function HomeScreen() {
     const { colors } = useTheme();
-    const [runningGoal, setRunningGoal] = useState('');
-    const [gymGoal, setGymGoal] = useState('');
-    const [ runningImportant, setRunningImportant] = useState(100);
+    const [runningGoal, setRunningGoal] = useState('Stay in shape with easy cardio when I feel like it');
+    const [gymGoal, setGymGoal] = useState('Get stronger — sleeper build');
+    const [ runningImportant, setRunningImportant] = useState(25);
     const gymImportant = 100 - runningImportant;
 
     const [saving, setSaving] = useState(false);
@@ -69,13 +69,13 @@ export default function HomeScreen() {
         <SafeAreaView style={styles.safeArea}>
             <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
                 <Text style={styles.title}>Set Your Goals</Text>
-                <Text style={styles.subtitle}>Tell Kairos what you are training for.</Text>
+                <Text style={styles.subtitle}>Lift is the main plan. Cardio is optional until you train for a race.</Text>
 
                 <View style={styles.card}>
                     <Text style={styles.label}>Running Goal</Text>
                     <TextInput
                         style={styles.input}
-                        placeholder="Example: Run 4:20 mile"
+                        placeholder="Example: Stay in shape until I train for a half"
                         placeholderTextColor={colors.textMuted}
                         value={runningGoal}
                         onChangeText={setRunningGoal}
@@ -97,6 +97,9 @@ export default function HomeScreen() {
 
                 <View style={styles.card}>
                     <Text style={styles.label}>Importance Split</Text>
+                    <Text style={styles.splitHint}>
+                      Gym-first keeps lifting as the main plan. Cardio is optional (run, treadmill, or bike) so you stay in shape. Slide running up later when you start half-marathon training.
+                    </Text>
                     <View style={styles.splitBadge}>
                         <Text style={styles.splitText}>
                             Running {runningImportant}% · Gym {gymImportant}%
@@ -158,6 +161,11 @@ function makeStyles(colors: ReturnType<typeof useTheme>['colors']) {
       fontSize: 16,
       fontWeight: '600',
       color: colors.text,
+    },
+    splitHint: {
+      fontSize: 13,
+      color: colors.textMuted,
+      lineHeight: 18,
     },
     input: {
       borderWidth: 1,

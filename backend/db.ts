@@ -42,10 +42,10 @@ function ensureDefaultUser(): void {
 }
 
 const DEFAULT_GOALS: Goals = {
-  runningGoal: '',
-  gymGoal: '',
-  runningImportant: 50,
-  gymImportant: 50,
+  runningGoal: 'Stay in shape with easy cardio when I feel like it',
+  gymGoal: 'Get stronger — sleeper build',
+  runningImportant: 25,
+  gymImportant: 75,
 };
 
 export function getGoals(userId = DEFAULT_USER_ID): Goals | null {

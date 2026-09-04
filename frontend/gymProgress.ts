@@ -56,6 +56,8 @@ export type GymProgressState = {
   programStartDate: string | null;
   weights: Record<string, ExerciseWeightMemory>;
   sessions: GymSessionLog[];
+  /** Dates when user chose a forced rest / recovery day (YYYY-MM-DD) */
+  forcedRestDays?: string[];
   streak: {
     currentStreak: number;
     longestStreak: number;
@@ -75,6 +77,7 @@ function safeParse(raw: string | null): GymProgressState {
       programStartDate: null,
       weights: {},
       sessions: [],
+      forcedRestDays: [],
       streak: { ...DEFAULT_STREAK },
     };
   }
@@ -84,6 +87,7 @@ function safeParse(raw: string | null): GymProgressState {
       programStartDate: parsed.programStartDate ?? null,
       weights: parsed.weights ?? {},
       sessions: parsed.sessions ?? [],
+      forcedRestDays: parsed.forcedRestDays ?? [],
       streak: parsed.streak ?? { ...DEFAULT_STREAK },
     };
   } catch {
@@ -91,6 +95,7 @@ function safeParse(raw: string | null): GymProgressState {
       programStartDate: null,
       weights: {},
       sessions: [],
+      forcedRestDays: [],
       streak: { ...DEFAULT_STREAK },
     };
   }
@@ -107,7 +112,7 @@ export async function saveGymProgress(state: GymProgressState): Promise<void> {
 
 /**
  * Ensures the lift program has a start date.
- * First launch → KAIROS_PROGRAM_START (Sun Aug 23, 2026) unless already set.
+ * First launch → KAIROS_PROGRAM_START unless already set.
  * Pass forceToday to restart from today; use setLiftProgramStartDate for a specific date.
  */
 export async function ensureLiftProgramStart(forceToday = false): Promise<GymProgressState> {
@@ -131,6 +136,132 @@ export async function setLiftProgramStartDate(dateKey: string): Promise<GymProgr
   };
   await saveGymProgress(next);
   return next;
+}
+
+/**
+ * Perform a soft reset of the lift program to start fresh at Day 1 (Push) on dateKey (defaults to today).
+ * Preserves all previous session logs and exercise weight memories.
+ */
+export async function softResetLiftProgram(dateKey: string = toLocalDateKey()): Promise<GymProgressState> {
+  const state = await loadGymProgress();
+  const next: GymProgressState = {
+    ...state,
+    programStartDate: dateKey,
+  };
+  await saveGymProgress(next);
+  return next;
+}
+
+function shiftIsoDate(isoDate: string, daysDelta: number): string {
+  const [y, m, d] = isoDate.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  date.setDate(date.getDate() + daysDelta);
+  return toLocalDateKey(date);
+}
+
+/**
+ * Records a forced rest day for dateKey (defaults to today) and shifts the program anchor
+ * forward by 1 day so tomorrow resumes the workout that was scheduled for today.
+ */
+export async function recordForcedRestDay(dateKey: string = toLocalDateKey()): Promise<GymProgressState> {
+  const state = await loadGymProgress();
+  const restList = state.forcedRestDays ?? [];
+  const alreadyMarked = restList.includes(dateKey);
+
+  const newRestList = alreadyMarked ? restList : [...restList, dateKey];
+  const curStart = state.programStartDate ?? KAIROS_PROGRAM_START;
+  // Shift program start date forward by 1 day so today becomes a rest day and the rotation slides smoothly
+  const newStart = alreadyMarked ? curStart : shiftIsoDate(curStart, 1);
+
+  const next: GymProgressState = {
+    ...state,
+    forcedRestDays: newRestList,
+    programStartDate: newStart,
+  };
+  await saveGymProgress(next);
+  return next;
+}
+
+/**
+ * Undo a forced rest day for dateKey. Shifts the program start date back by 1 day.
+ */
+export async function undoForcedRestDay(dateKey: string = toLocalDateKey()): Promise<GymProgressState> {
+  const state = await loadGymProgress();
+  const restList = state.forcedRestDays ?? [];
+  if (!restList.includes(dateKey)) return state;
+
+  const newRestList = restList.filter((d) => d !== dateKey);
+  const curStart = state.programStartDate ?? KAIROS_PROGRAM_START;
+  const newStart = shiftIsoDate(curStart, -1);
+
+  const next: GymProgressState = {
+    ...state,
+    forcedRestDays: newRestList,
+    programStartDate: newStart,
+  };
+  await saveGymProgress(next);
+  return next;
+}
+
+export function isForcedRestToday(state: GymProgressState, dateKey: string = toLocalDateKey()): boolean {
+  return (state.forcedRestDays ?? []).includes(dateKey);
+}
+
+export type RecoveryInsights = {
+  daysSinceLastSession: number;
+  recentRestDaysCount: number;
+  isRestToday: boolean;
+  recommendSoftReset: boolean;
+  message: string;
+};
+
+/**
+ * Analyzes recent rest / inactivity to offer recovery insights and suggest soft resets.
+ */
+export function getRecoveryInsights(state: GymProgressState, todayDateKey: string = toLocalDateKey()): RecoveryInsights {
+  const isRestToday = isForcedRestToday(state, todayDateKey);
+  const restList = state.forcedRestDays ?? [];
+
+  // Calculate days since last completed session
+  let daysSinceLastSession = 0;
+  if (state.streak.lastCompletedDate) {
+    const [ly, lm, ld] = state.streak.lastCompletedDate.split('-').map(Number);
+    const [ty, tm, td] = todayDateKey.split('-').map(Number);
+    const lastTime = new Date(ly, lm - 1, ld).getTime();
+    const todayTime = new Date(ty, tm - 1, td).getTime();
+    daysSinceLastSession = Math.max(0, Math.round((todayTime - lastTime) / (1000 * 60 * 60 * 24)));
+  } else if (state.sessions.length > 0) {
+    const lastSession = state.sessions[0];
+    const [ly, lm, ld] = lastSession.date.split('-').map(Number);
+    const [ty, tm, td] = todayDateKey.split('-').map(Number);
+    const lastTime = new Date(ly, lm - 1, ld).getTime();
+    const todayTime = new Date(ty, tm - 1, td).getTime();
+    daysSinceLastSession = Math.max(0, Math.round((todayTime - lastTime) / (1000 * 60 * 60 * 24)));
+  } else {
+    daysSinceLastSession = 3; // Default fresh state
+  }
+
+  // Count forced rest days in last 7 days
+  const recentRestDaysCount = restList.length;
+
+  const recommendSoftReset = daysSinceLastSession >= 3 || recentRestDaysCount >= 2;
+
+  let message = 'Recovery status: on track.';
+  if (isRestToday) {
+    message = 'Forced rest day active today. Schedule shifted by 1 day to allow full muscle recovery.';
+  } else if (daysSinceLastSession >= 3) {
+    message = `${daysSinceLastSession} days of rest/recovery detected. A soft reset to Day 1 (Push) is recommended to restart fresh.`;
+  } else if (recentRestDaysCount >= 2) {
+    message = 'Multiple forced rest days logged. Soft reset recommended to reset volume with Day 1 (Push).';
+  }
+
+  return {
+    daysSinceLastSession,
+    recentRestDaysCount,
+    isRestToday,
+    recommendSoftReset,
+    message,
+  };
 }
 
 /** Last saved start weight, or null if first time (user enters their own). */
@@ -242,7 +373,7 @@ export function recordGymSessionCompletion(
   state: GymProgressState,
   session: GymSessionLog
 ): GymProgressState {
-  const today = toLocalDateKey();
+  const sessionDate = session.date || toLocalDateKey();
   const nextWeights = { ...state.weights };
 
   for (const exercise of session.exercises) {
@@ -251,16 +382,18 @@ export function recordGymSessionCompletion(
     nextWeights[exercise.exerciseId] = {
       lastWorkingWeightLbs: lastSet.weightLbs,
       nextStartWeightLbs: exercise.nextSessionWeightLbs,
-      lastSessionDate: today,
+      lastSessionDate: sessionDate,
       note: exercise.progressed
         ? `Progressed — start ${exercise.nextSessionWeightLbs} lb next time`
         : undefined,
     };
   }
 
+  const today = toLocalDateKey();
   const last = state.streak.lastCompletedDate;
   let streak = state.streak;
-  if (last !== today) {
+  // Only advance streak when logging a session for today
+  if (sessionDate === today && last !== today) {
     const currentStreak = last && isYesterdayDateKey(last) ? state.streak.currentStreak + 1 : 1;
     streak = {
       currentStreak,
@@ -273,6 +406,7 @@ export function recordGymSessionCompletion(
     programStartDate: state.programStartDate,
     weights: nextWeights,
     sessions: [session, ...state.sessions].slice(0, 40),
+    forcedRestDays: state.forcedRestDays ?? [],
     streak,
   };
 }
@@ -319,5 +453,6 @@ export async function syncUnsyncedSessions(): Promise<number> {
   if (syncedCount > 0) {
     await saveGymProgress({ ...state, sessions });
   }
+
   return syncedCount;
 }

@@ -1,655 +1,599 @@
 /**
-
- * Kairos → Google Sheets bridge
-
+ * Kairos Lift Log — Clean, Automated Google Sheets Apps Script (v9)
  *
-
- * SETUP (once on your computer):
-
- * 1. Create a Google Sheet named "Kairos Lift Log"
-
- * 2. Extensions → Apps Script → delete any code → paste THIS whole file → Save
-
- * 3. Deploy → New deployment → Type: Web app
-
- *    - Execute as: Me
-
- *    - Who has access: Anyone (the app only sends your workout rows)
-
- * 4. Copy the Web app URL
-
- * 5. In Kairos → Settings → paste that URL under Google Sheets
-
+ * CLEAN 7-COLUMN STRUCTURE:
+ *   Date | Exercise | Set | Target | Start lb | Weight | Reps
  *
-
- * After updating this script: Deploy → Manage deployments → Edit (pencil) → New version → Deploy.
-
- * First run migrates an old single "Log" tab into Push / Pull / Legs / Upper / Lower
-
- * (your filled rows are kept — Log is renamed to "_Old Log").
-
+ * FEATURES:
+ *   - Automatic exercise alternative dropdowns (e.g., Flat Machine vs Barbell Bench)
+ *   - Universal date & number parser
+ *   - Multi-tab session scanning
+ *   - Automatic sanitization of legacy columns
  *
-
- * Tabs:
-
- *   Push / Pull / Legs / Upper / Lower — one row per set for that day type
-
- *   Progress — latest weight per exercise (auto-refreshed on each send)
-
+ * SETUP / UPDATE:
+ * 1. Open your Google Sheet → Extensions → Apps Script
+ * 2. Delete ALL code → paste THIS file → Save (Cmd+S / Ctrl+S)
+ * 3. Deploy → Manage deployments → click Pencil (Edit) → Version: "New version" → Deploy
  */
-
-
 
 var WORKOUT_TABS = ['Push', 'Pull', 'Legs', 'Upper', 'Lower'];
-
 var PROGRESS_SHEET = 'Progress';
 
-var OLD_LOG = 'Log';
-
-var ARCHIVED_LOG = '_Old Log';
-
-
-
-/** Per-workout tab (Workout is the tab name, so it is not a column) */
-
-var HEADERS = ['Date', 'Exercise', 'Set', 'Goal', 'Weight', 'Reps', 'Feel'];
-
+var HEADERS = ['Date', 'Exercise', 'Set', 'Target', 'Start lb', 'Weight', 'Reps'];
 var PROGRESS_HEADERS = ['Exercise', 'Workout', 'Weight', 'Reps', 'Date', 'Change'];
 
-
-
 function doGet() {
-
-  return ContentService.createTextOutput(
-
-    JSON.stringify({ ok: true, service: 'kairos-lift-log' })
-
-  ).setMimeType(ContentService.MimeType.JSON);
-
+  return json_({ ok: true, service: 'kairos-lift-log', version: 9 });
 }
-
-
 
 function doPost(e) {
-
   try {
-
     var body = JSON.parse(e.postData.contents);
-
     var ss = SpreadsheetApp.getActiveSpreadsheet();
-
     ensureSheets_(ss);
 
-
+    if (body.action === 'clean_layout') {
+      cleanAndSanitizeAllSheets_(ss);
+      refreshProgress_(ss);
+      return json_({
+        ok: true,
+        message: 'Cleaned all sheets. Restored pristine 7-column layout (Date, Exercise, Set, Target, Start lb, Weight, Reps).',
+      });
+    }
 
     if (body.action === 'append' && body.rows && body.rows.length) {
-
+      cleanAndSanitizeAllSheets_(ss);
       var n = appendRows_(ss, body.rows);
-
       refreshProgress_(ss);
-
       return json_({
-
         ok: true,
-
         appended: n,
-
-        message: 'Added ' + n + ' rows to the workout tab(s). Progress updated.',
-
+        message: 'Added ' + n + ' rows to your sheet. Fill Weight + Reps (yellow) at the gym.',
       });
-
     }
 
-
+    if (body.action === 'fetch_session') {
+      cleanAndSanitizeAllSheets_(ss);
+      var dateKey = String(body.date || '').trim();
+      if (!dateKey) {
+        return json_({ ok: false, error: 'Pass date as YYYY-MM-DD' });
+      }
+      var session = fetchSession_(ss, dateKey);
+      return json_({
+        ok: true,
+        date: dateKey,
+        workout: session.workout,
+        rows: session.rows,
+        filledSets: session.rows.length,
+        debug: session.debug,
+        message:
+          session.rows.length > 0
+            ? 'Found ' + session.rows.length + ' filled sets for ' + dateKey
+            : 'No filled sets found for ' +
+              dateKey +
+              '. Tabs checked: ' +
+              session.debug.tabsChecked.join(', ') +
+              '. Dates found: ' +
+              (session.debug.datesFound.length ? session.debug.datesFound.join(', ') : 'none'),
+      });
+    }
 
     if (body.action === 'refresh_progress') {
-
       refreshProgress_(ss);
-
       return json_({ ok: true, message: 'Progress refreshed.' });
-
     }
 
-
-
-    if (body.action === 'migrate') {
-
-      var moved = migrateOldLog_(ss);
-
-      refreshProgress_(ss);
-
-      return json_({
-
-        ok: true,
-
-        migrated: moved,
-
-        message: 'Migrated ' + moved + ' rows from Log into workout tabs.',
-
-      });
-
-    }
-
-
-
-    return json_({ ok: false, error: 'Unknown action' });
-
+    return json_({ ok: false, error: 'Unknown action: ' + body.action });
   } catch (err) {
-
     return json_({ ok: false, error: String(err) });
-
   }
-
 }
 
-
-
+/**
+ * Ensures all standard workout tabs exist and cleans legacy "Order" and "Slot" columns.
+ */
 function ensureSheets_(ss) {
-
   for (var i = 0; i < WORKOUT_TABS.length; i++) {
-
     ensureWorkoutSheet_(ss, WORKOUT_TABS[i]);
-
   }
-
-
 
   var progress = ss.getSheetByName(PROGRESS_SHEET);
-
   if (!progress) progress = ss.insertSheet(PROGRESS_SHEET);
+  styleHeaderRow_(progress, PROGRESS_HEADERS);
 
-  progress.getRange(1, 1, 1, PROGRESS_HEADERS.length).setValues([PROGRESS_HEADERS]);
-
-  progress.getRange(1, 1, 1, PROGRESS_HEADERS.length).setFontWeight('bold');
-
-  progress.setFrozenRows(1);
-
-  progress.setColumnWidth(1, 180);
-
-  progress.setColumnWidth(2, 80);
-
-
-
-  // Move existing combined Log into Push/Pull/… once
-
-  migrateOldLog_(ss);
-
+  var sheet1 = ss.getSheetByName('Sheet1');
+  if (sheet1 && sheet1.getLastRow() <= 1 && WORKOUT_TABS.indexOf('Sheet1') < 0) {
+    try {
+      ss.deleteSheet(sheet1);
+    } catch (ignore) {}
+  }
 }
-
-
 
 function ensureWorkoutSheet_(ss, name) {
-
-  var sheet = ss.getSheetByName(name);
-
+  var sheet = getSheetCaseInsensitive_(ss, name);
   if (!sheet) sheet = ss.insertSheet(name);
-
-  sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
-
-  sheet.getRange(1, 1, 1, HEADERS.length).setFontWeight('bold');
-
-  sheet.setFrozenRows(1);
-
-  sheet.setColumnWidths(1, HEADERS.length, 90);
-
-  sheet.setColumnWidth(2, 180); // Exercise
-
+  sanitizeSingleSheetLayout_(sheet);
   return sheet;
-
 }
 
-
-
 /**
-
- * Map whatever the app / old Log stored in the Workout column → tab name.
-
+ * Completely scrubs legacy "Order" or "Slot/Required" headers and formats row 1 cleanly.
  */
+function sanitizeSingleSheetLayout_(sheet) {
+  var lastRow = sheet.getLastRow();
+  var maxCols = sheet.getMaxColumns();
+
+  // If sheet is fresh or row 1 contains legacy headers like "Order" or "Slot"
+  if (lastRow < 1) {
+    sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+  } else {
+    var topRow = sheet.getRange(1, 1, 1, Math.min(maxCols, 12)).getValues()[0];
+    var hasLegacyHeaders = false;
+    for (var c = 0; c < topRow.length; c++) {
+      var h = String(topRow[c] || '').trim().toLowerCase();
+      if (h === 'order' || h === 'slot' || h === 'feel' || h === 'workout') {
+        hasLegacyHeaders = true;
+        break;
+      }
+    }
+
+    // Overwrite header row with pristine 7-column layout
+    sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+
+    // Clear any leftover phantom headers beyond column 7
+    if (maxCols > HEADERS.length) {
+      sheet.getRange(1, HEADERS.length + 1, 1, maxCols - HEADERS.length).clear();
+    }
+  }
+
+  styleHeaderRow_(sheet, HEADERS);
+  sheet.setColumnWidth(1, 100); // Date
+  sheet.setColumnWidth(2, 220); // Exercise
+  sheet.setColumnWidth(3, 50);  // Set
+  sheet.setColumnWidth(4, 75);  // Target
+  sheet.setColumnWidth(5, 75);  // Start lb
+  sheet.setColumnWidth(6, 75);  // Weight
+  sheet.setColumnWidth(7, 65);  // Reps
+}
+
+function cleanAndSanitizeAllSheets_(ss) {
+  for (var i = 0; i < WORKOUT_TABS.length; i++) {
+    var s = getSheetCaseInsensitive_(ss, WORKOUT_TABS[i]);
+    if (s) sanitizeSingleSheetLayout_(s);
+  }
+}
+
+function styleHeaderRow_(sheet, headers) {
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  sheet
+    .getRange(1, 1, 1, headers.length)
+    .setFontWeight('bold')
+    .setBackground('#111827')
+    .setFontColor('#ffffff');
+  sheet.setFrozenRows(1);
+}
 
 function tabForWorkout_(workout) {
-
   var w = String(workout || '')
-
     .trim()
-
     .toLowerCase();
-
   if (w.indexOf('push') === 0) return 'Push';
-
   if (w.indexOf('pull') === 0) return 'Pull';
-
   if (w.indexOf('legs') === 0) return 'Legs';
-
   if (w.indexOf('upper') === 0) return 'Upper';
-
   if (w.indexOf('lower') === 0) return 'Lower';
-
   return null;
-
 }
 
-
+function getSheetCaseInsensitive_(ss, name) {
+  var exact = ss.getSheetByName(name);
+  if (exact) return exact;
+  var target = String(name || '').trim().toLowerCase();
+  var sheets = ss.getSheets();
+  for (var i = 0; i < sheets.length; i++) {
+    var sName = sheets[i].getName().trim().toLowerCase();
+    if (sName === target || sName.indexOf(target) === 0) {
+      return sheets[i];
+    }
+  }
+  return null;
+}
 
 function appendRows_(ss, rows) {
-
-  // Group by destination tab
-
   var byTab = {};
-
   for (var i = 0; i < rows.length; i++) {
-
     var r = rows[i];
-
-    var tab = tabForWorkout_(r.workout);
-
-    if (!tab) tab = 'Push'; // fallback — should not happen
-
+    var tab = tabForWorkout_(r.workout) || 'Push';
     if (!byTab[tab]) byTab[tab] = [];
-
-    byTab[tab].push([
-
-      r.date || '',
-
-      r.exercise || '',
-
-      r.set || '',
-
-      r.goal || r.target || '',
-
-      r.weight === null || r.weight === undefined ? '' : r.weight,
-
-      r.reps === null || r.reps === undefined ? '' : r.reps,
-
-      r.feel || '',
-
-    ]);
-
+    byTab[tab].push(r);
   }
-
-
 
   var total = 0;
-
   var tabs = Object.keys(byTab);
-
   for (var t = 0; t < tabs.length; t++) {
-
     var name = tabs[t];
-
     var sheet = ensureWorkoutSheet_(ss, name);
+    var payload = byTab[name];
+    var values = [];
+    var lastExercise = '';
+    var lastDate = '';
 
-    var values = byTab[name];
+    for (var j = 0; j < payload.length; j++) {
+      var row = payload[j];
+      var date = row.date || '';
+      var exercise = row.exercise || '';
+      var setNum = row.set || '';
+      var target = row.goal || row.target || '';
+      var start =
+        row.startWeight === null || row.startWeight === undefined || row.startWeight === ''
+          ? ''
+          : row.startWeight;
+      var weight =
+        row.weight === null || row.weight === undefined || row.weight === '' ? '' : row.weight;
+      var reps = row.reps === null || row.reps === undefined || row.reps === '' ? '' : row.reps;
 
-    sheet.getRange(sheet.getLastRow() + 1, 1, values.length, HEADERS.length).setValues(values);
+      var showExercise = exercise;
+      var showDate = date;
+      if (exercise === lastExercise && date === lastDate) {
+        showExercise = '';
+        showDate = '';
+      }
+      lastExercise = exercise;
+      lastDate = date;
+
+      values.push([showDate, showExercise, setNum, target, start, weight, reps]);
+    }
+
+    var startRow = sheet.getLastRow() + 1;
+
+    // Blank spacer between sessions
+    if (startRow > 2) {
+      sheet
+        .getRange(startRow, 1, 1, HEADERS.length)
+        .setValues([['', '', '', '', '', '', '']]);
+      startRow += 1;
+    }
+
+    sheet.getRange(startRow, 1, values.length, HEADERS.length).setValues(values);
+    sheet.getRange(startRow, 6, values.length, 2).setBackground('#fef9c3');
+
+    for (var k = 0; k < values.length; k++) {
+      var rowPayload = payload[k];
+      if (values[k][1]) {
+        sheet.getRange(startRow + k, 2).setFontWeight('bold');
+      }
+      // Apply exercise alternative dropdown if options exist
+      if (rowPayload && rowPayload.exerciseOptions && rowPayload.exerciseOptions.length > 1) {
+        applyExerciseDropdown_(sheet.getRange(startRow + k, 2), rowPayload.exerciseOptions);
+      }
+    }
 
     total += values.length;
-
   }
-
   return total;
-
 }
 
-
-
-/**
-
- * One-time: copy rows from "Log" into the right workout tabs, then rename Log.
-
- * Safe to call repeatedly — if Log is already gone, does nothing.
-
- *
-
- * Supports both layouts:
-
- *   New-ish Log: Date Workout Exercise Set Goal Weight Reps Feel
-
- *   (Workout in column B)
-
- */
-
-function migrateOldLog_(ss) {
-
-  var log = ss.getSheetByName(OLD_LOG);
-
-  if (!log) return 0;
-
-  if (log.getLastRow() < 2) {
-
-    // Empty Log — just archive / remove so it does not confuse
-
-    try {
-
-      log.setName(ARCHIVED_LOG);
-
-    } catch (e) {
-
-      /* already exists */
-
-    }
-
-    return 0;
-
-  }
-
-
-
-  var data = log.getDataRange().getValues();
-
-  var headers = data[0].map(function (h) {
-
-    return String(h).toLowerCase();
-
-  });
-
-
-
-  // Detect column indexes (flexible)
-
-  var colDate = indexOfHeader_(headers, ['date']);
-
-  var colWorkout = indexOfHeader_(headers, ['workout', 'day label', 'day']);
-
-  var colExercise = indexOfHeader_(headers, ['exercise']);
-
-  var colSet = indexOfHeader_(headers, ['set']);
-
-  var colGoal = indexOfHeader_(headers, ['goal', 'target reps', 'target']);
-
-  var colWeight = indexOfHeader_(headers, ['weight', 'weight lb', 'weight lbs']);
-
-  var colReps = indexOfHeader_(headers, ['reps']);
-
-  var colFeel = indexOfHeader_(headers, ['feel']);
-
-
-
-  // Fallback to the known simple layout if headers are messy
-
-  if (colDate < 0) colDate = 0;
-
-  if (colWorkout < 0) colWorkout = 1;
-
-  if (colExercise < 0) colExercise = 2;
-
-  if (colSet < 0) colSet = 3;
-
-  if (colGoal < 0) colGoal = 4;
-
-  if (colWeight < 0) colWeight = 5;
-
-  if (colReps < 0) colReps = 6;
-
-  if (colFeel < 0) colFeel = 7;
-
-
-
-  var byTab = {};
-
-  var moved = 0;
-
-  for (var i = 1; i < data.length; i++) {
-
-    var row = data[i];
-
-    var workout = row[colWorkout];
-
-    var tab = tabForWorkout_(workout);
-
-    if (!tab) continue;
-
-    if (!byTab[tab]) byTab[tab] = [];
-
-    byTab[tab].push([
-
-      row[colDate] || '',
-
-      row[colExercise] || '',
-
-      row[colSet] || '',
-
-      row[colGoal] || '',
-
-      row[colWeight] === null || row[colWeight] === undefined ? '' : row[colWeight],
-
-      row[colReps] === null || row[colReps] === undefined ? '' : row[colReps],
-
-      row[colFeel] || '',
-
-    ]);
-
-    moved++;
-
-  }
-
-
-
-  var tabs = Object.keys(byTab);
-
-  for (var t = 0; t < tabs.length; t++) {
-
-    var name = tabs[t];
-
-    var sheet = ensureWorkoutSheet_(ss, name);
-
-    var values = byTab[name];
-
-    if (values.length) {
-
-      sheet.getRange(sheet.getLastRow() + 1, 1, values.length, HEADERS.length).setValues(values);
-
-    }
-
-  }
-
-
-
-  // Keep a backup so nothing is lost
-
+function applyExerciseDropdown_(range, options) {
   try {
-
-    var existingArchive = ss.getSheetByName(ARCHIVED_LOG);
-
-    if (existingArchive) {
-
-      ss.deleteSheet(existingArchive);
-
-    }
-
-    log.setName(ARCHIVED_LOG);
-
+    var rule = SpreadsheetApp.newDataValidation()
+      .requireValueInList(options, true)
+      .setAllowInvalid(true)
+      .build();
+    range.setDataValidation(rule);
   } catch (err) {
-
-    // If rename fails, leave Log as-is; rows already copied
-
+    // Ignore validation errors on restricted ranges
   }
-
-
-
-  return moved;
-
 }
-
-
-
-function indexOfHeader_(headers, names) {
-
-  for (var i = 0; i < names.length; i++) {
-
-    var idx = headers.indexOf(names[i]);
-
-    if (idx >= 0) return idx;
-
-  }
-
-  return -1;
-
-}
-
-
 
 /**
-
- * Aggregate Progress from all workout tabs.
-
- * Columns per tab: Date(0) Exercise(1) Set(2) Goal(3) Weight(4) Reps(5) Feel(6)
-
+ * Universal date normalizer: extracts YYYY-MM-DD from any date or string.
  */
+function normalizeDate_(value, ss) {
+  if (value === '' || value === null || value === undefined) return '';
+
+  if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) {
+    try {
+      var tz = ss ? ss.getSpreadsheetTimeZone() : Session.getScriptTimeZone();
+      return Utilities.formatDate(value, tz, 'yyyy-MM-dd');
+    } catch (e) {
+      var y = value.getFullYear();
+      var m = value.getMonth() + 1;
+      var d = value.getDate();
+      return y + '-' + (m < 10 ? '0' : '') + m + '-' + (d < 10 ? '0' : '') + d;
+    }
+  }
+
+  var str = String(value).trim();
+  if (!str) return '';
+
+  // 2026-08-25 or 2026/08/25
+  var iso = str.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})/);
+  if (iso) {
+    var y = Number(iso[1]);
+    var m = Number(iso[2]);
+    var d = Number(iso[3]);
+    return y + '-' + (m < 10 ? '0' : '') + m + '-' + (d < 10 ? '0' : '') + d;
+  }
+
+  // 08/25/2026 or 8/25/2026
+  var us = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})/);
+  if (us) {
+    var m = Number(us[1]);
+    var d = Number(us[2]);
+    var y = Number(us[3]);
+    if (y < 100) y += 2000;
+    return y + '-' + (m < 10 ? '0' : '') + m + '-' + (d < 10 ? '0' : '') + d;
+  }
+
+  // 8/25 (current year)
+  var monthDay = str.match(/^(\d{1,2})[\/\-](\d{1,2})$/);
+  if (monthDay) {
+    var curYear = new Date().getFullYear();
+    var m = Number(monthDay[1]);
+    var d = Number(monthDay[2]);
+    return curYear + '-' + (m < 10 ? '0' : '') + m + '-' + (d < 10 ? '0' : '') + d;
+  }
+
+  var parsed = Date.parse(str);
+  if (!isNaN(parsed)) {
+    var dt = new Date(parsed);
+    var y = dt.getFullYear();
+    var m = dt.getMonth() + 1;
+    var d = dt.getDate();
+    return y + '-' + (m < 10 ? '0' : '') + m + '-' + (d < 10 ? '0' : '') + d;
+  }
+
+  return str;
+}
+
+function parseNum_(val) {
+  if (val === '' || val === null || val === undefined) return null;
+  if (typeof val === 'number') return isFinite(val) ? val : null;
+  var str = String(val).trim().toLowerCase();
+  if (str === 'bw' || str === 'bodyweight') return 0;
+  var match = str.match(/[-+]?[0-9]*\.?[0-9]+/);
+  if (match) {
+    var n = parseFloat(match[0]);
+    return isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+function findColIndexes_(headerRow) {
+  var map = { date: -1, exercise: -1, set: -1, target: -1, start: -1, weight: -1, reps: -1 };
+  if (!headerRow || !headerRow.length) {
+    return { date: 0, exercise: 1, set: 2, target: 3, start: 4, weight: 5, reps: 6 };
+  }
+
+  for (var i = 0; i < headerRow.length; i++) {
+    var h = String(headerRow[i] || '').trim().toLowerCase();
+    if (h === 'date' || h === 'session date' || h === 'day') {
+      map.date = i;
+    } else if (h === 'exercise' || h === 'movement' || h === 'lift' || h === 'name') {
+      map.exercise = i;
+    } else if (h === 'set' || h === 'set #' || h === 'set num' || h === 'set number') {
+      map.set = i;
+    } else if (h === 'target' || h === 'goal' || h === 'target reps' || h === 'rep range') {
+      map.target = i;
+    } else if (h.indexOf('start') >= 0) {
+      map.start = i;
+    } else if (h.indexOf('weight') >= 0 || h === 'load' || h === 'lbs' || h === 'lb') {
+      map.weight = i;
+    } else if (h.indexOf('rep') >= 0) {
+      map.reps = i;
+    }
+  }
+
+  if (map.date === -1) map.date = 0;
+  if (map.exercise === -1) map.exercise = 1;
+  if (map.set === -1) map.set = 2;
+  if (map.weight === -1) map.weight = headerRow.length >= 7 ? 5 : headerRow.length >= 6 ? 4 : 5;
+  if (map.reps === -1) map.reps = headerRow.length >= 7 ? 6 : headerRow.length >= 6 ? 5 : 6;
+  if (map.target === -1) map.target = 3;
+  if (map.start === -1) map.start = 4;
+
+  return map;
+}
+
+/**
+ * Fetch filled sets for one date across all tabs.
+ */
+function fetchSession_(ss, targetDateKey) {
+  var targetNorm = normalizeDate_(targetDateKey, ss);
+  var rows = [];
+  var foundWorkout = '';
+  var debug = {
+    targetDate: targetNorm,
+    tabsChecked: [],
+    datesFound: [],
+    sampleRows: [],
+  };
+
+  var allSheets = ss.getSheets();
+  var sheetsToCheck = [];
+
+  for (var w = 0; w < WORKOUT_TABS.length; w++) {
+    var ws = getSheetCaseInsensitive_(ss, WORKOUT_TABS[w]);
+    if (ws && sheetsToCheck.indexOf(ws) < 0) {
+      sheetsToCheck.push(ws);
+    }
+  }
+  for (var a = 0; a < allSheets.length; a++) {
+    var s = allSheets[a];
+    var sName = s.getName().trim().toLowerCase();
+    if (sName !== 'progress' && sName.indexOf('_old') !== 0 && sheetsToCheck.indexOf(s) < 0) {
+      sheetsToCheck.push(s);
+    }
+  }
+
+  for (var sIdx = 0; sIdx < sheetsToCheck.length; sIdx++) {
+    var sheet = sheetsToCheck[sIdx];
+    var tabName = sheet.getName();
+    debug.tabsChecked.push(tabName);
+
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) continue;
+
+    var data = sheet.getDataRange().getValues();
+    if (data.length < 2) continue;
+
+    var cols = findColIndexes_(data[0]);
+    var currentExercise = '';
+    var currentDate = '';
+
+    for (var i = 1; i < data.length; i++) {
+      var rowValues = data[i];
+
+      var isBlank = true;
+      for (var c = 0; c < rowValues.length; c++) {
+        if (rowValues[c] !== '' && rowValues[c] !== null && rowValues[c] !== undefined) {
+          isBlank = false;
+          break;
+        }
+      }
+      if (isBlank) {
+        currentExercise = '';
+        continue;
+      }
+
+      var rawDate = rowValues[cols.date];
+      var normDate = normalizeDate_(rawDate, ss);
+      if (normDate) {
+        currentDate = normDate;
+        if (debug.datesFound.indexOf(normDate) < 0) {
+          debug.datesFound.push(normDate);
+        }
+      }
+
+      var named = String(rowValues[cols.exercise] || '').trim();
+      if (named) currentExercise = named;
+
+      if (!currentDate || currentDate !== targetNorm) continue;
+      if (!currentExercise) continue;
+
+      var w = parseNum_(rowValues[cols.weight]);
+      var r = parseNum_(rowValues[cols.reps]);
+
+      if (w === null && r === null) {
+        for (var colIdx = 0; colIdx < rowValues.length; colIdx++) {
+          if (colIdx === cols.date || colIdx === cols.exercise) continue;
+          var num = parseNum_(rowValues[colIdx]);
+          if (num !== null) {
+            if (w === null) w = num;
+            else if (r === null) {
+              r = num;
+              break;
+            }
+          }
+        }
+      }
+
+      if (debug.sampleRows.length < 3) {
+        debug.sampleRows.push(
+          tabName + ' r' + (i + 1) + ': date=' + currentDate + ' ex=' + currentExercise + ' w=' + w + ' r=' + r
+        );
+      }
+
+      if (w === null && r === null) continue;
+      if (w === null) w = 0;
+      if (r === null) r = 0;
+
+      var startVal = parseNum_(rowValues[cols.start]);
+
+      rows.push({
+        date: targetNorm,
+        workout: tabName,
+        exercise: currentExercise,
+        set: parseNum_(rowValues[cols.set]) || (rows.length + 1),
+        goal: String(rowValues[cols.target] || ''),
+        startWeight: startVal !== null ? startVal : '',
+        weight: w,
+        reps: r,
+      });
+
+      if (!foundWorkout) foundWorkout = tabName;
+    }
+  }
+
+  return { workout: foundWorkout, rows: rows, debug: debug };
+}
 
 function refreshProgress_(ss) {
-
   var progress = ss.getSheetByName(PROGRESS_SHEET);
+  if (!progress) progress = ss.insertSheet(PROGRESS_SHEET);
 
   var byExercise = {};
 
-
-
   for (var t = 0; t < WORKOUT_TABS.length; t++) {
-
-    var sheet = ss.getSheetByName(WORKOUT_TABS[t]);
-
+    var sheet = getSheetCaseInsensitive_(ss, WORKOUT_TABS[t]);
     if (!sheet || sheet.getLastRow() < 2) continue;
 
     var data = sheet.getDataRange().getValues();
+    if (data.length < 2) continue;
+
+    var cols = findColIndexes_(data[0]);
+    var currentExercise = '';
+    var currentDate = '';
 
     for (var i = 1; i < data.length; i++) {
+      var rawDate = data[i][cols.date];
+      var normDate = normalizeDate_(rawDate, ss);
+      if (normDate) currentDate = normDate;
 
-      var date = normalizeDate_(data[i][0]);
+      var named = String(data[i][cols.exercise] || '').trim();
+      if (named) currentExercise = named;
 
-      var exercise = String(data[i][1] || '');
-
-      var setNum = Number(data[i][2]);
-
-      var weight = data[i][4];
-
-      var reps = data[i][5];
-
+      var exercise = currentExercise;
+      var setNum = parseNum_(data[i][cols.set]) || 1;
+      var w = parseNum_(data[i][cols.weight]);
+      var r = parseNum_(data[i][cols.reps]);
       var workoutName = WORKOUT_TABS[t];
 
-
-
-      if (!exercise || weight === '' || weight === null) continue;
-
-      var w = Number(weight);
-
-      if (!isFinite(w)) continue;
-
-
+      if (!exercise || w === null || !currentDate) continue;
 
       if (!byExercise[exercise]) byExercise[exercise] = { workout: workoutName, days: {} };
-
-      // Prefer most recent workout tab label seen
-
       byExercise[exercise].workout = workoutName;
 
-      var day = byExercise[exercise].days[date];
-
+      var day = byExercise[exercise].days[currentDate];
       if (!day || setNum >= day.setNum) {
-
-        byExercise[exercise].days[date] = {
-
+        byExercise[exercise].days[currentDate] = {
           setNum: setNum,
-
           weight: w,
-
-          reps: reps === '' || reps === null ? '' : Number(reps),
-
+          reps: r !== null ? r : '',
         };
-
       }
-
     }
-
   }
-
-
 
   var out = [];
-
   var names = Object.keys(byExercise).sort();
-
   for (var n = 0; n < names.length; n++) {
-
     var name = names[n];
-
     var entry = byExercise[name];
-
     var dates = Object.keys(entry.days).sort();
-
     if (dates.length === 0) continue;
-
     var lastDate = dates[dates.length - 1];
-
     var last = entry.days[lastDate];
-
     var change = '—';
-
     if (dates.length >= 2) {
-
       var prev = entry.days[dates[dates.length - 2]];
-
       var delta = last.weight - prev.weight;
-
       if (delta > 0) change = '+' + delta;
-
       else if (delta < 0) change = String(delta);
-
       else change = 'same';
-
     }
-
-    out.push([name, entry.workout, last.weight, last.reps, lastDate, change]);
-
+    out.push([names[n], entry.workout, last.weight, last.reps, lastDate, change]);
   }
-
-
 
   progress.clearContents();
-
-  progress.getRange(1, 1, 1, PROGRESS_HEADERS.length).setValues([PROGRESS_HEADERS]);
-
-  progress.getRange(1, 1, 1, PROGRESS_HEADERS.length).setFontWeight('bold');
-
-  progress.setFrozenRows(1);
-
+  styleHeaderRow_(progress, PROGRESS_HEADERS);
   if (out.length) {
-
     progress.getRange(2, 1, out.length, PROGRESS_HEADERS.length).setValues(out);
-
   }
-
 }
-
-
-
-function normalizeDate_(value) {
-
-  if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) {
-
-    var y = value.getFullYear();
-
-    var m = value.getMonth() + 1;
-
-    var d = value.getDate();
-
-    return y + '-' + (m < 10 ? '0' : '') + m + '-' + (d < 10 ? '0' : '') + d;
-
-  }
-
-  return String(value || '');
-
-}
-
-
 
 function json_(obj) {
-
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(
-
     ContentService.MimeType.JSON
-
   );
-
 }
-
-

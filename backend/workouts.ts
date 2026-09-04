@@ -81,9 +81,59 @@ export const runWorkouts: Record<string, RunWorkout> = {
       { name: 'Main set', prescription: '60 min easy-long' },
     ],
   },
+  optional_cardio_25: {
+    id: 'optional_cardio_25',
+    title: 'Optional Easy Cardio',
+    focus: 'Stay in shape — run, treadmill, or bike',
+    estimatedMin: 30,
+    warmup: '3 min easy spin or walk',
+    main: '20–30 min conversational. Skip if you lifted hard or don’t feel like it.',
+    cooldown: '2 min easy + stretch if you want',
+    exercises: [
+      { name: 'Main set', prescription: '20–30 min easy (run / treadmill / bike)' },
+    ],
+  },
+  optional_cardio_40: {
+    id: 'optional_cardio_40',
+    title: 'Optional Easy Cardio',
+    focus: 'A little more aerobic work when you feel good',
+    estimatedMin: 45,
+    warmup: '5 min easy',
+    main: '35–45 min zone 2. Keep it easy — this is not race training.',
+    cooldown: '3 min walk',
+    exercises: [
+      { name: 'Main set', prescription: '35–45 min easy (run / treadmill / bike)' },
+    ],
+  },
+  bike_or_treadmill_25: {
+    id: 'bike_or_treadmill_25',
+    title: 'Easy Bike or Incline Walk',
+    focus: 'Low-impact option on sore-leg days',
+    estimatedMin: 25,
+    warmup: '2 min easy',
+    main: '20–25 min steady, nose-breathing effort. No intervals.',
+    cooldown: '2 min easy',
+    exercises: [
+      { name: 'Main set', prescription: '20–25 min bike or incline walk' },
+    ],
+  },
 };
 
 export const gymWorkouts: Record<string, GymWorkout> = {
+  lift_tab: {
+    id: 'lift_tab',
+    title: 'Strength (Lift tab)',
+    focus: 'Follow today’s Push / Pull / Legs / Upper / Lower session',
+    estimatedMin: 60,
+    exercises: [
+      {
+        name: 'Open Lift',
+        sets: 1,
+        reps: 'see Lift tab',
+        notes: 'The offline PPLUL program is the real workout',
+      },
+    ],
+  },
   upper_strength: {
     id: 'upper_strength',
     title: 'Upper Strength',

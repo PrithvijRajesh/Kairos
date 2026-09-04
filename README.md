@@ -7,7 +7,7 @@ frontend/   → Expo / React Native app (TypeScript)
 backend/    → Optional API for run plans + goals sync (Express + SQLite)
 ```
 
-**Program start:** Sunday **Aug 23, 2026** = Core Workout **A** + Lift **Push** (Day 1). The app applies this automatically on first launch after update.
+**Program start:** Monday **Aug 24, 2026** = Core Workout **A** + Lift **Push** (Day 1). The app applies this automatically on first launch after update.
 
 ---
 
@@ -21,7 +21,7 @@ backend/    → Optional API for run plans + goals sync (Express + SQLite)
 | **Google Sheets** | Gym log at the gym without Expo — Push/Pull/Legs/Upper/Lower tabs + Progress |
 | **Core** | 4-day rotation (A→B→C→D): bracing, anti-rotation, run stability, endurance |
 | **Stretch** | 4 mobility routines with timers + streak |
-| **Check-in** | Energy/soreness adjusts hard **run** days on the API plan |
+| **Check-in** | Energy/soreness can skip optional cardio when you’re tired |
 
 ---
 
@@ -29,11 +29,11 @@ backend/    → Optional API for run plans + goals sync (Express + SQLite)
 
 ### Every day
 1. Open app → **Dashboard** shows today's run + lift.
-2. Optional: **Check-in** if you want the API to ease hard runs when tired.
+2. Optional: **Check-in** if you’re beat up — the plan can skip optional cardio.
 
 ### Lift day (at home first)
 1. **Lift → Worksheet → Send today's blank rows to Sheets** (needs Wi‑Fi once).
-2. At gym: open Google Sheets → today's tab (e.g. **Push**) → fill **Weight / Reps / Feel**.
+2. At gym: open Google Sheets → today's tab (e.g. **Push**) → fill **Weight + Reps** (yellow).
 3. No need to upload — the Sheet *is* your log. Progress tab updates when you send rows from home.
 
 ### Lift day (in app, when Expo works)
@@ -47,8 +47,11 @@ backend/    → Optional API for run plans + goals sync (Express + SQLite)
 ### Stretch
 1. **Stretch** → pick routine → session timers → done.
 
-### Run (when API is running)
-1. **Run** → today's prescription → **Log run** when finished.
+### Cardio (optional — stay in shape)
+1. **Cardio** → pick **Run / Treadmill / Bike**, then **Chill / Normal / A little farther**.
+2. The app recommends miles from your last run (and how long ago). After a week off it steps you back.
+3. Log the session. Next time the rec updates.
+4. **Training plan** runs a 4-mile easy test first, then builds a week from your time.
 
 ---
 
@@ -66,8 +69,20 @@ backend/    → Optional API for run plans + goals sync (Express + SQLite)
 | 6 | Lower |
 | 7 | Rest |
 
-Repeats from **Aug 23, 2026**.
+Repeats from **Aug 24, 2026**.
 
+### Cardio (optional)
+
+Default split is **gym 75% / running 25%**. Lifting is required. Cardio is not.
+
+| When | What |
+|------|------|
+| Chill phase | Run, treadmill, or bike · light / normal / farther |
+| Mileage | Sized from last run + days since (no jumping back onto old volume) |
+| Bike | Time instead of miles (~8 min per run-mile) |
+| Training plan | 4-mile easy test, then a week matched to fitness |
+
+---
 ### Core (offline)
 
 | Day | Workout | Focus |
@@ -83,9 +98,29 @@ Rotates A → B → C → D from program start.
 
 ## Setup (one time)
 
+### Mac prerequisites
+
+Install **Node.js 20+** (includes npm):
+
+```bash
+brew install node
+```
+
+Or download from [nodejs.org](https://nodejs.org).
+
+Then install project dependencies:
+
+```bash
+cd /path/to/Kairos
+chmod +x setup-mac.sh
+./setup-mac.sh
+```
+
+See `requirements.txt` for the full checklist.
+
 ### 1. Backend (optional — for run plan + goals sync)
 
-```powershell
+```bash
 cd backend
 npm install
 npm run dev
@@ -95,7 +130,7 @@ Health: `http://localhost:3000/api/health`
 
 ### 2. Frontend
 
-```powershell
+```bash
 cd frontend
 npm install
 npx expo start
@@ -111,7 +146,7 @@ Create `frontend/.env`:
 EXPO_PUBLIC_API_URL=http://YOUR_PC_LAN_IP:3000/api
 ```
 
-Use `ipconfig` (Windows) for IPv4. Restart Expo after editing.
+Use `ipconfig getifaddr en0` (Mac Wi‑Fi) or `ifconfig` for your LAN IP. Restart Expo after editing.
 
 **Lift / Core / Stretch work without the API.** Run + Week plan need the backend.
 
@@ -130,7 +165,7 @@ After script updates: Deploy → Manage → Edit → **New version** → Deploy.
 
 | Setting | Effect |
 |---------|--------|
-| **Set both to Sun Aug 23, 2026** | Core A + Lift Push start that Sunday |
+| **Set both to Mon Aug 24, 2026** | Core A + Lift Push start that Monday |
 | Core start date | When Workout A begins (A→B→C→D rotation) |
 | Lift start date | When Push begins (PPLUL rotation) |
 | Sheets URL | Where workout rows are sent |
@@ -164,10 +199,10 @@ After script updates: Deploy → Manage → Edit → **New version** → Deploy.
 
 | Problem | Fix |
 |---------|-----|
-| Dashboard lift ≠ Lift screen | Tap **Set both to Sun Aug 23, 2026** in Settings |
+| Dashboard lift ≠ Lift screen | Tap **Set both to Mon Aug 24, 2026** in Settings |
 | Expo dies at gym | Use Google Sheets worksheet flow |
 | Sheets columns wrong | Redeploy Apps Script, clear old Log tab once |
-| Wrong lift day | Settings → Lift start date → `2026-08-23` or reset button |
+| Wrong lift day | Settings → Lift start date → `2026-08-24` or reset button |
 | Run/Week empty | Start backend + set `EXPO_PUBLIC_API_URL` |
 
 ---
@@ -181,7 +216,7 @@ frontend/
   coreWorkouts.ts   Core A–D + exercise library
   stretchRoutines.ts
   googleSheetsAppsScript.js
-  programConfig.ts  Shared start date (2026-08-23)
+  programConfig.ts  Shared start date (2026-08-24)
 backend/
   planEngine.ts     Adaptive run/gym week templates
   workouts.ts       Run + legacy gym templates for API

@@ -3,7 +3,7 @@ import { KAIROS_PROGRAM_START } from './programConfig';
 export type progressionType = 'reps' | 'time';
 
 export type exerciseLevel = {
-  level: 1 |2 | 3;
+  level: 1 | 2 | 3;
   label: string;
   repsPerSide?: number;
   totalReps?: number;
@@ -28,9 +28,9 @@ export type CoreWorkout = {
   focus: string;
   estimatedMin: number;
   exerciseIds: string[];
-}
+};
 
-// --- EXERCISE LIBRARY (shared; Workout A pulls from here) ---
+// --- EXERCISE LIBRARY ---
 
 export const coreExerciseLibrary: Record<string, CoreExerciseTemplate> = {
   dead_bug: {
@@ -67,7 +67,7 @@ export const coreExerciseLibrary: Record<string, CoreExerciseTemplate> = {
     levels: [
       { level: 1, label: 'Standard', repsPerSide: 8 },
       { level: 2, label: 'More reps', repsPerSide: 10 },
-      { level: 3, label: 'Longer hold', repsPerSide: 10 }, // UI note: "3 sec hold at top"
+      { level: 3, label: 'Longer hold', repsPerSide: 10 },
     ],
   },
 
@@ -94,7 +94,7 @@ export const coreExerciseLibrary: Record<string, CoreExerciseTemplate> = {
     id: 'side_plank',
     name: 'Side plank',
     type: 'time',
-    sets: 2, // 2 sets PER SIDE — see helper below
+    sets: 2,
     restSec: 45,
     cues: [
       'Elbow under shoulder, hips stacked',
@@ -293,22 +293,22 @@ export const coreExerciseLibrary: Record<string, CoreExerciseTemplate> = {
     ],
   },
 
-  pallof_press: {
-    id: 'pallof_press',
-    name: 'Pallof press (band or cable)',
-    type: 'time',
+  plank_shoulder_taps: {
+    id: 'plank_shoulder_taps',
+    name: 'Plank shoulder taps',
+    type: 'reps',
     sets: 3,
     restSec: 45,
     cues: [
-      'Stand sideways to anchor, hands at chest',
-      'Press straight out — resist rotation',
-      'Ribs down, glutes lightly on',
+      'High plank — hands under shoulders, feet wide for balance',
+      'Tap opposite shoulder slow; hips stay square (no twist)',
+      'Exhale on each tap · brace strong',
     ],
-    stopIf: 'Stop if low back twists or shoulders roll forward.',
+    stopIf: 'Stop if hips rock hard or low back sags.',
     levels: [
-      { level: 1, label: 'Standard', holdSecPerSide: 12 },
-      { level: 2, label: 'Longer', holdSecPerSide: 15 },
-      { level: 3, label: 'Heavier band', holdSecPerSide: 18 },
+      { level: 1, label: 'Standard', totalReps: 16 },
+      { level: 2, label: 'More taps', totalReps: 20 },
+      { level: 3, label: 'Slow taps', totalReps: 24 },
     ],
   },
 
@@ -332,7 +332,7 @@ export const coreExerciseLibrary: Record<string, CoreExerciseTemplate> = {
   },
 };
 
-// --- WORKOUT A ---
+// --- WORKOUTS A, B, C, D ---
 
 export const workoutA: CoreWorkout = {
   id: 'A',
@@ -351,10 +351,10 @@ export const workoutA: CoreWorkout = {
 export const workoutB: CoreWorkout = {
   id: 'B',
   title: 'Anti-rotation B',
-  focus: 'Resist twisting + lower abs — gait stability',
+  focus: 'Resist twisting + lower abs — home floor (no band/cable)',
   estimatedMin: 17,
   exerciseIds: [
-    'pallof_press',
+    'plank_shoulder_taps',
     'bird_dog',
     'windshield_wiper',
     'reverse_crunch',
@@ -379,7 +379,7 @@ export const workoutC: CoreWorkout = {
 export const workoutD: CoreWorkout = {
   id: 'D',
   title: 'Core endurance D',
-  focus: 'Hold form under fatigue — late-run / end of session',
+  focus: 'Hold form under fatigue — late-run support',
   estimatedMin: 16,
   exerciseIds: [
     'front_plank',
@@ -390,7 +390,6 @@ export const workoutD: CoreWorkout = {
   ],
 };
 
-/** Default program start if settings not loaded yet */
 export const DEFAULT_PROGRAM_START_ISO = KAIROS_PROGRAM_START;
 
 export const coreWorkoutRotation: CoreWorkout[] = [
@@ -429,7 +428,6 @@ export function getDaysSinceProgramStart(
   return Math.round((current.getTime() - start.getTime()) / msPerDay);
 }
 
-/** Which workout (A–D) for a given calendar day */
 export function getWorkoutForDate(
   forDate: Date = new Date(),
   programStartIso: string = DEFAULT_PROGRAM_START_ISO
@@ -452,7 +450,6 @@ export function isProgramStarted(
   return getDaysSinceProgramStart(forDate, programStartIso) >= 0;
 }
 
-/** Line shown under the title on the Core tab */
 export function getProgramStatusLabel(
   forDate: Date = new Date(),
   programStartIso: string = DEFAULT_PROGRAM_START_ISO
@@ -471,7 +468,6 @@ export function getExercisesForWorkout(workout: CoreWorkout): CoreExerciseTempla
     .filter((exercise): exercise is CoreExerciseTemplate => exercise != null);
 }
 
-/** What to show for prescription at a given level (default level 1 for new users) */
 export function formatPrescription(
   exercise: CoreExerciseTemplate,
   level: 1 | 2 | 3 = 1
@@ -483,13 +479,12 @@ export function formatPrescription(
     }
     return `${exercise.sets} sets × ${step.holdSec} sec`;
   }
-  // reps
   if (step.repsPerSide != null) {
     return `${exercise.sets} sets × ${step.repsPerSide}/side`;
   }
   return `${exercise.sets} sets × ${step.totalReps} reps`;
 }
-/** Seconds for countdown timer (time exercises only) */
+
 export function getHoldSeconds(
   exercise: CoreExerciseTemplate,
   level: 1 | 2 | 3 = 1
@@ -499,7 +494,6 @@ export function getHoldSeconds(
   return step.holdSecPerSide ?? step.holdSec ?? null;
 }
 
-/** True when timer runs once per side (e.g. side plank, Copenhagen). */
 export function isPerSideTimeExercise(
   exercise: CoreExerciseTemplate,
   level: 1 | 2 | 3 = 1

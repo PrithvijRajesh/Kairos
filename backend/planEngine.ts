@@ -32,11 +32,12 @@ function startOfWeek(dateKey: string): string {
 }
 
 function weeklyTemplate(runningImportant: number): Record<number, Slot> {
+  // Race-prep week — only when running is the main goal.
   if (runningImportant >= 65) {
     return {
       0: { runId: null, gymId: null, note: 'Rest or light mobility' },
       1: { runId: 'easy_run_30', gymId: null },
-      2: { runId: null, gymId: 'light_gym' },
+      2: { runId: null, gymId: 'lift_tab', note: 'Lift: follow the Lift tab' },
       3: { runId: 'intervals_400', gymId: null },
       4: { runId: 'recovery_run_20', gymId: null },
       5: { runId: 'tempo_20', gymId: null },
@@ -44,26 +45,39 @@ function weeklyTemplate(runningImportant: number): Record<number, Slot> {
     };
   }
 
+  // Default: lift-first. Cardio is optional so you stay in shape, not race-ready.
   if (runningImportant <= 35) {
     return {
-      0: { runId: null, gymId: null, note: 'Rest day' },
-      1: { runId: null, gymId: 'push_day' },
-      2: { runId: 'easy_run_30', gymId: null },
-      3: { runId: null, gymId: 'legs_day' },
-      4: { runId: 'recovery_run_20', gymId: null },
-      5: { runId: null, gymId: 'pull_day' },
-      6: { runId: null, gymId: 'full_body' },
+      0: {
+        runId: 'optional_cardio_25',
+        gymId: null,
+        note: 'Optional cardio on a lift rest day. Run, treadmill, or bike. Skip anytime.',
+      },
+      1: { runId: null, gymId: 'lift_tab', note: 'Lift day — use the Lift tab' },
+      2: { runId: null, gymId: 'lift_tab', note: 'Lift day — use the Lift tab' },
+      3: { runId: null, gymId: 'lift_tab', note: 'Lift day — use the Lift tab' },
+      4: {
+        runId: 'optional_cardio_25',
+        gymId: null,
+        note: 'Optional 20–30 min easy. Bike or incline walk if legs are sore.',
+      },
+      5: { runId: null, gymId: 'lift_tab', note: 'Lift day — use the Lift tab' },
+      6: { runId: null, gymId: 'lift_tab', note: 'Lift day — use the Lift tab' },
     };
   }
 
   return {
-    0: { runId: null, gymId: null, note: 'Rest or easy walk' },
-    1: { runId: 'easy_run_30', gymId: null },
-    2: { runId: null, gymId: 'upper_strength' },
-    3: { runId: 'intervals_400', gymId: null },
-    4: { runId: null, gymId: 'lower_strength' },
-    5: { runId: 'easy_run_45', gymId: null },
-    6: { runId: null, gymId: 'full_body' },
+    0: {
+      runId: 'optional_cardio_40',
+      gymId: null,
+      note: 'Optional longer easy cardio. Skip if you need the rest.',
+    },
+    1: { runId: null, gymId: 'lift_tab', note: 'Lift day — use the Lift tab' },
+    2: { runId: 'optional_cardio_25', gymId: 'lift_tab', note: 'Keep cardio easy if you also lift' },
+    3: { runId: null, gymId: 'lift_tab', note: 'Lift day — use the Lift tab' },
+    4: { runId: null, gymId: 'lift_tab', note: 'Lift day — use the Lift tab' },
+    5: { runId: 'easy_run_30', gymId: null, note: 'Easy only — not intervals' },
+    6: { runId: null, gymId: 'lift_tab', note: 'Lift day — use the Lift tab' },
   };
 }
 
@@ -82,7 +96,18 @@ function applyCheckInAdjustments(slot: Slot, checkIn: CheckIn | null): Slot {
     if (slot.runId === 'long_run_60') {
       return { ...slot, runId: 'easy_run_45', note: 'Adjusted: shorter long run based on check-in' };
     }
-    if (slot.gymId && slot.gymId !== 'light_gym') {
+    if (
+      slot.runId === 'optional_cardio_25' ||
+      slot.runId === 'optional_cardio_40' ||
+      slot.runId === 'easy_run_30'
+    ) {
+      return {
+        ...slot,
+        runId: null,
+        note: 'Adjusted: skip cardio today — lift recovery comes first',
+      };
+    }
+    if (slot.gymId && slot.gymId !== 'light_gym' && slot.gymId !== 'lift_tab') {
       return { ...slot, gymId: 'light_gym', note: 'Adjusted: lighter gym based on check-in' };
     }
   }

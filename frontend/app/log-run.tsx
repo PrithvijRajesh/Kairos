@@ -1,12 +1,12 @@
-// Log a completed run.
+// Log a cardio session — mode, effort, distance/time, date.
 import { useState } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
-  Pressable,
   TextInput,
   ScrollView,
+  Pressable,
+  StyleSheet,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -14,88 +14,283 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 
-import { submitRunLog } from '../api';
+import { appendCardioLog } from '../cardioLog';
 import { toLocalDateKey } from '../coreProgress';
+import {
+  type CardioEffort,
+  type CardioMode,
+  effortLabel,
+  formatMiles,
+  modeLabel,
+  recommendMileage,
+  recommendMinutes,
+} from '../cardioCoach';
+import { loadCardioLog } from '../cardioLog';
 import { useTheme } from '../ThemeContext';
 import { radius, spacing } from '../theme';
 
+const MODES: { id: CardioMode; label: string; icon: string }[] = [
+  { id: 'run', label: 'Outdoor Run', icon: '🏃' },
+  { id: 'treadmill', label: 'Treadmill', icon: '⚙️' },
+  { id: 'bike', label: 'Bike', icon: '🚴' },
+];
+
+const EFFORTS: { id: CardioEffort; label: string; desc: string }[] = [
+  { id: 'light', label: 'Chill 😌', desc: 'Conversational pace, nose-breathing easy' },
+  { id: 'normal', label: 'Normal 😤', desc: 'Comfortable push — could talk in short sentences' },
+  { id: 'farther', label: 'Harder 🔥', desc: 'Pushed it — high effort, breathing heavy' },
+];
+
+const DATE_PRESETS = [
+  { label: 'Today', offset: 0 },
+  { label: 'Yesterday', offset: 1 },
+  { label: '2 days ago', offset: 2 },
+];
+
+function dateFromOffset(offset: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - offset);
+  return toLocalDateKey(d);
+}
+
 export default function LogRunScreen() {
   const { colors } = useTheme();
-  const params = useLocalSearchParams<{ workoutId?: string }>();
-  const workoutId = params.workoutId ?? 'easy_run_30';
-  const [durationMin, setDurationMin] = useState('');
-  const [distanceMi, setDistanceMi] = useState('');
-  const [notes, setNotes] = useState('');
-  const [saving, setSaving] = useState(false);
+  const params = useLocalSearchParams<{ mode?: string; date?: string }>();
+
+  const initMode: CardioMode =
+    params.mode === 'treadmill' || params.mode === 'bike' ? params.mode : 'run';
+  const initDate = params.date ?? toLocalDateKey();
+
+  const [mode, setMode] = useState<CardioMode>(initMode);
+  const [effort, setEffort] = useState<CardioEffort>('normal');
+  const [distanceText, setDistanceText] = useState('');
+  const [durationText, setDurationText] = useState('');
+  const [inclineText, setInclineText] = useState('');
+  const [resistanceText, setResistanceText] = useState('');
+  const [notesText, setNotesText] = useState('');
+
+  // Date selection
+  const [datePreset, setDatePreset] = useState<number | null>(
+    initDate === toLocalDateKey() ? 0 : initDate === dateFromOffset(1) ? 1 : null
+  );
+  const [customDate, setCustomDate] = useState(
+    datePreset === null ? initDate : ''
+  );
 
   const styles = makeStyles(colors);
 
+  const selectedDate =
+    datePreset !== null ? dateFromOffset(datePreset) : customDate.trim() || toLocalDateKey();
+
   async function handleSave() {
-    setSaving(true);
-    try {
-      await submitRunLog({
-        date: toLocalDateKey(),
-        workoutId,
-        durationMin: durationMin ? Number(durationMin) : undefined,
-        distanceMi: distanceMi ? Number(distanceMi) : undefined,
-        notes: notes.trim() || undefined,
-      });
-      Alert.alert('Logged', 'Run saved.', [{ text: 'OK', onPress: () => router.back() }]);
-    } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Could not log run');
-    } finally {
-      setSaving(false);
+    const distance = parseFloat(distanceText);
+    const duration = parseInt(durationText, 10);
+    const incline = parseFloat(inclineText);
+    const resistance = parseInt(resistanceText, 10);
+
+    if (mode === 'run' && (!distance || isNaN(distance))) {
+      Alert.alert('Add distance', 'Enter how many miles you ran.');
+      return;
     }
+    if ((mode === 'treadmill' || mode === 'bike') && (!duration || isNaN(duration))) {
+      Alert.alert('Add duration', 'Enter how many minutes you went.');
+      return;
+    }
+    if (!selectedDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      Alert.alert('Check the date', 'Date must be in YYYY-MM-DD format (e.g. 2026-09-03).');
+      return;
+    }
+
+    const workoutId = `${mode}_${selectedDate}_${Date.now()}`;
+
+    await appendCardioLog({
+      date: selectedDate,
+      mode,
+      effort,
+      distanceMi: mode === 'run' && distance ? distance : undefined,
+      durationMin: (mode === 'treadmill' || mode === 'bike') && duration ? duration : undefined,
+      inclinePercent: mode === 'treadmill' && !isNaN(incline) ? incline : undefined,
+      resistance: mode === 'bike' && !isNaN(resistance) ? resistance : undefined,
+      notes: notesText.trim() || undefined,
+      workoutId,
+    });
+
+    // Show smart feedback
+    const allLogs = await loadCardioLog();
+    const todayKey = toLocalDateKey();
+    const mileRec = recommendMileage(allLogs, todayKey);
+    const minuteRec = recommendMinutes(allLogs, todayKey, mode === 'run' ? 'treadmill' : mode);
+
+    let nextMsg = '';
+    if (mode === 'run') {
+      if (effort === 'farther') {
+        nextMsg = `Nice hard run! Next time aim for a Chill ${formatMiles(mileRec.lightMi)} — recovery runs rebuild faster.`;
+      } else if (effort === 'light') {
+        nextMsg = `Solid easy run. Your base is building. Next Normal target: ~${formatMiles(mileRec.normalMi)}.`;
+      } else {
+        nextMsg = `Good Normal effort. Next time try ${formatMiles(mileRec.normalMi)}–${formatMiles(mileRec.fartherMi)} or stick with Normal to lock in the base.`;
+      }
+    } else {
+      if (effort === 'farther') {
+        nextMsg = `Hard ${modeLabel(mode).toLowerCase()} session logged. Next time keep it easy — ${minuteRec.lightMin} min is plenty.`;
+      } else {
+        nextMsg = `${modeLabel(mode)} logged. Next Normal session target: ~${minuteRec.normalMin} min.`;
+      }
+    }
+
+    Alert.alert('Logged! 🎉', nextMsg, [
+      { text: 'OK', onPress: () => router.push('/run') },
+    ]);
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['bottom']}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+    <SafeAreaView style={styles.safe}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-          <Text style={styles.title}>Log run</Text>
-          <Text style={styles.subtitle}>Workout: {workoutId}</Text>
+          <Text style={styles.title}>Log session</Text>
 
-          <View style={styles.card}>
-            <Text style={styles.label}>Duration (minutes)</Text>
+          {/* Mode */}
+          <Text style={styles.sectionLabel}>Activity</Text>
+          <View style={styles.chipRow}>
+            {MODES.map((m) => (
+              <Pressable
+                key={m.id}
+                style={[styles.chip, mode === m.id && styles.chipActive]}
+                onPress={() => setMode(m.id)}
+              >
+                <Text style={styles.chipIcon}>{m.icon}</Text>
+                <Text style={[styles.chipLabel, mode === m.id && styles.chipLabelActive]}>
+                  {m.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {/* Date */}
+          <Text style={styles.sectionLabel}>Date</Text>
+          <View style={styles.chipRow}>
+            {DATE_PRESETS.map((p) => (
+              <Pressable
+                key={p.offset}
+                style={[styles.chip, datePreset === p.offset && styles.chipActive]}
+                onPress={() => { setDatePreset(p.offset); setCustomDate(''); }}
+              >
+                <Text style={[styles.chipLabel, datePreset === p.offset && styles.chipLabelActive]}>
+                  {p.label}
+                </Text>
+                <Text style={styles.chipSub}>{dateFromOffset(p.offset)}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Pressable
+            style={[styles.chip, datePreset === null && styles.chipActive]}
+            onPress={() => setDatePreset(null)}
+          >
+            <Text style={[styles.chipLabel, datePreset === null && styles.chipLabelActive]}>Custom date</Text>
+          </Pressable>
+          {datePreset === null && (
             <TextInput
               style={styles.input}
-              value={durationMin}
-              onChangeText={setDurationMin}
-              keyboardType="numeric"
-              placeholder="35"
+              placeholder="YYYY-MM-DD"
               placeholderTextColor={colors.textMuted}
+              value={customDate}
+              onChangeText={setCustomDate}
+              keyboardType="numbers-and-punctuation"
+              autoFocus
             />
+          )}
+
+          {/* Stats */}
+          {mode === 'run' && (
+            <>
+              <Text style={styles.sectionLabel}>Distance (miles)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. 3.1"
+                placeholderTextColor={colors.textMuted}
+                keyboardType="decimal-pad"
+                value={distanceText}
+                onChangeText={setDistanceText}
+              />
+            </>
+          )}
+
+          {(mode === 'treadmill' || mode === 'bike') && (
+            <>
+              <Text style={styles.sectionLabel}>Duration (minutes)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. 30"
+                placeholderTextColor={colors.textMuted}
+                keyboardType="number-pad"
+                value={durationText}
+                onChangeText={setDurationText}
+              />
+            </>
+          )}
+
+          {mode === 'treadmill' && (
+            <>
+              <Text style={styles.sectionLabel}>Incline % (optional)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. 1.5"
+                placeholderTextColor={colors.textMuted}
+                keyboardType="decimal-pad"
+                value={inclineText}
+                onChangeText={setInclineText}
+              />
+            </>
+          )}
+
+          {mode === 'bike' && (
+            <>
+              <Text style={styles.sectionLabel}>Resistance level (optional)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. 6"
+                placeholderTextColor={colors.textMuted}
+                keyboardType="number-pad"
+                value={resistanceText}
+                onChangeText={setResistanceText}
+              />
+            </>
+          )}
+
+          {/* Effort */}
+          <Text style={styles.sectionLabel}>How did it feel?</Text>
+          <View style={styles.effortCol}>
+            {EFFORTS.map((e) => (
+              <Pressable
+                key={e.id}
+                style={[styles.effortRow, effort === e.id && styles.effortRowActive]}
+                onPress={() => setEffort(e.id)}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.effortLabel, effort === e.id && styles.effortLabelActive]}>
+                    {e.label}
+                  </Text>
+                  <Text style={styles.effortDesc}>{e.desc}</Text>
+                </View>
+                {effort === e.id && <Text style={styles.checkmark}>✓</Text>}
+              </Pressable>
+            ))}
           </View>
 
-          <View style={styles.card}>
-            <Text style={styles.label}>Distance (miles)</Text>
-            <TextInput
-              style={styles.input}
-              value={distanceMi}
-              onChangeText={setDistanceMi}
-              keyboardType="decimal-pad"
-              placeholder="4.2"
-              placeholderTextColor={colors.textMuted}
-            />
-          </View>
+          {/* Notes */}
+          <Text style={styles.sectionLabel}>Notes (optional)</Text>
+          <TextInput
+            style={[styles.input, styles.inputMulti]}
+            placeholder="How did it go? Anything notable?"
+            placeholderTextColor={colors.textMuted}
+            value={notesText}
+            onChangeText={setNotesText}
+            multiline
+            numberOfLines={3}
+          />
 
-          <View style={styles.card}>
-            <Text style={styles.label}>Notes</Text>
-            <TextInput
-              style={[styles.input, styles.multiline]}
-              value={notes}
-              onChangeText={setNotes}
-              placeholder="How it felt..."
-              placeholderTextColor={colors.textMuted}
-              multiline
-            />
-          </View>
-
-          <Pressable style={styles.button} onPress={handleSave} disabled={saving}>
-            <Text style={styles.buttonText}>{saving ? 'Saving...' : 'Save log'}</Text>
+          <Pressable style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleSave}>
+            <Text style={styles.saveBtnText}>Save session</Text>
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -105,35 +300,64 @@ export default function LogRunScreen() {
 
 function makeStyles(colors: ReturnType<typeof useTheme>['colors']) {
   return StyleSheet.create({
-    safeArea: { flex: 1, backgroundColor: colors.background },
-    flex: { flex: 1 },
-    container: { padding: spacing.lg, gap: spacing.md },
-    title: { fontSize: 26, fontWeight: '700', color: colors.text },
-    subtitle: { fontSize: 14, color: colors.textMuted },
-    card: {
+    safe: { flex: 1, backgroundColor: colors.background },
+    container: { padding: spacing.lg, gap: spacing.sm, paddingBottom: 48 },
+    title: { fontSize: 26, fontWeight: '700', color: colors.text, marginBottom: spacing.xs },
+    sectionLabel: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textMuted,
+      textTransform: 'uppercase',
+      letterSpacing: 0.8,
+      marginTop: spacing.sm,
+    },
+    chipRow: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
+    chip: {
+      alignItems: 'center',
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      gap: 2,
+    },
+    chipActive: { borderColor: colors.primary, backgroundColor: colors.accentSoft },
+    chipIcon: { fontSize: 18 },
+    chipLabel: { fontSize: 13, fontWeight: '600', color: colors.textMuted },
+    chipLabelActive: { color: colors.accent },
+    chipSub: { fontSize: 11, color: colors.textMuted },
+    input: {
       backgroundColor: colors.surface,
       borderRadius: radius.md,
       borderWidth: 1,
       borderColor: colors.border,
       padding: spacing.md,
-      gap: spacing.sm,
+      fontSize: 16,
+      color: colors.text,
     },
-    label: { fontSize: 16, fontWeight: '600', color: colors.text },
-    input: {
+    inputMulti: { minHeight: 80, textAlignVertical: 'top' },
+    effortCol: { gap: spacing.xs },
+    effortRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: spacing.md,
+      borderRadius: radius.md,
       borderWidth: 1,
       borderColor: colors.border,
-      borderRadius: radius.sm,
-      padding: spacing.sm,
-      color: colors.text,
-      backgroundColor: colors.background,
+      backgroundColor: colors.surface,
     },
-    multiline: { minHeight: 80, textAlignVertical: 'top' },
-    button: {
-      backgroundColor: colors.primary,
+    effortRowActive: { borderColor: colors.primary, backgroundColor: colors.accentSoft },
+    effortLabel: { fontSize: 15, fontWeight: '700', color: colors.text },
+    effortLabelActive: { color: colors.accent },
+    effortDesc: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+    checkmark: { fontSize: 18, color: colors.primary, fontWeight: '700' },
+    saveBtn: {
+      marginTop: spacing.md,
       borderRadius: radius.md,
-      paddingVertical: 14,
+      paddingVertical: spacing.md,
       alignItems: 'center',
     },
-    buttonText: { color: colors.primaryText, fontWeight: '700', fontSize: 16 },
+    saveBtnText: { fontSize: 16, fontWeight: '700', color: '#fff' },
   });
 }

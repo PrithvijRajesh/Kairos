@@ -1,6 +1,6 @@
 // Today's lift from your program — Day 1 = Push. Fully offline.
 import { useCallback, useState } from 'react';
-import { ScrollView, Text, View, StyleSheet, Pressable } from 'react-native';
+import { ScrollView, Text, View, StyleSheet, Pressable, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 
@@ -16,9 +16,16 @@ import {
 } from '../../gymWorkouts';
 import {
   ensureLiftProgramStart,
+  getRecoveryInsights,
   getSuggestedStartWeight,
+  isForcedRestToday,
   isGymCompletedToday,
+  recordForcedRestDay,
+  softResetLiftProgram,
   syncUnsyncedSessions,
+  undoForcedRestDay,
+  type GymProgressState,
+  type RecoveryInsights,
 } from '../../gymProgress';
 import {
   applySwapsToWorkout,
@@ -36,45 +43,53 @@ export default function LiftScreen() {
   const [currentStreak, setCurrentStreak] = useState(0);
   const [startWeights, setStartWeights] = useState<Record<string, number | null>>({});
   const [syncNote, setSyncNote] = useState<string | null>(null);
+  const [recovery, setRecovery] = useState<RecoveryInsights | null>(null);
+  const [isRestDayForced, setIsRestDayForced] = useState(false);
+
+  const loadData = useCallback(async () => {
+    const state = await ensureLiftProgramStart(false);
+    if (!state.programStartDate) return;
+
+    const todaySchedule = getScheduleForDate(new Date(), state.programStartDate);
+    const swaps = await loadTodaysSwaps();
+    const insights = getRecoveryInsights(state);
+    setRecovery(insights);
+    setIsRestDayForced(isForcedRestToday(state));
+
+    if (todaySchedule.kind === 'lift') {
+      const withSwaps = {
+        ...todaySchedule,
+        workout: applySwapsToWorkout(todaySchedule.workout, swaps),
+      };
+      setSchedule(withSwaps);
+      const weights: Record<string, number | null> = {};
+      for (const ex of withSwaps.workout.exercises) {
+        weights[ex.id] = getSuggestedStartWeight(state, ex);
+      }
+      setStartWeights(weights);
+    } else {
+      setSchedule(todaySchedule);
+    }
+
+    setCompletedToday(isGymCompletedToday(state));
+    setCurrentStreak(state.streak.currentStreak);
+
+    const synced = await syncUnsyncedSessions();
+    if (synced > 0) {
+      setSyncNote(`Synced ${synced} session${synced === 1 ? '' : 's'} to your PC.`);
+    }
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
       let active = true;
-      async function load() {
-        const state = await ensureLiftProgramStart(false);
-        if (!active || !state.programStartDate) return;
-
-        const todaySchedule = getScheduleForDate(new Date(), state.programStartDate);
-        const swaps = await loadTodaysSwaps();
-
-        if (todaySchedule.kind === 'lift') {
-          const withSwaps = {
-            ...todaySchedule,
-            workout: applySwapsToWorkout(todaySchedule.workout, swaps),
-          };
-          setSchedule(withSwaps);
-          const weights: Record<string, number | null> = {};
-          for (const ex of withSwaps.workout.exercises) {
-            weights[ex.id] = getSuggestedStartWeight(state, ex);
-          }
-          setStartWeights(weights);
-        } else {
-          setSchedule(todaySchedule);
-        }
-
-        setCompletedToday(isGymCompletedToday(state));
-        setCurrentStreak(state.streak.currentStreak);
-
-        const synced = await syncUnsyncedSessions();
-        if (active && synced > 0) {
-          setSyncNote(`Synced ${synced} session${synced === 1 ? '' : 's'} to your PC.`);
-        }
-      }
-      load();
+      loadData().then(() => {
+        if (!active) return;
+      });
       return () => {
         active = false;
       };
-    }, [])
+    }, [loadData])
   );
 
   async function onSwapExercise(index: number, next: GymExercise) {
@@ -96,6 +111,45 @@ export default function LiftScreen() {
     }));
   }
 
+  function handleTakeRestDay() {
+    Alert.alert(
+      'Take a Recovery Day?',
+      'Feeling sore? Logging a rest day shifts your workout rotation forward by 1 day so no workouts are skipped.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Take Rest Day',
+          onPress: async () => {
+            await recordForcedRestDay();
+            await loadData();
+          },
+        },
+      ]
+    );
+  }
+
+  function handleSoftReset() {
+    Alert.alert(
+      'Soft Reset to Day 1 (Push)?',
+      'Start fresh with Day 1 (Push) today. All your saved weights and workout history are safely kept.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset to Day 1',
+          onPress: async () => {
+            await softResetLiftProgram();
+            await loadData();
+          },
+        },
+      ]
+    );
+  }
+
+  async function handleUndoRestDay() {
+    await undoForcedRestDay();
+    await loadData();
+  }
+
   const styles = makeStyles(colors);
 
   if (!schedule) {
@@ -114,12 +168,37 @@ export default function LiftScreen() {
         <ScrollView contentContainerStyle={styles.container}>
           <Text style={styles.eyebrow}>Lift program</Text>
           <Text style={styles.title}>{schedule.label}</Text>
-          <Text style={styles.subtitle}>{schedule.hint}</Text>
+          <Text style={styles.subtitle}>
+            {isRestDayForced
+              ? 'Recovery Day Active · Your rotation shifted +1 day so no workouts are skipped.'
+              : schedule.hint}
+          </Text>
+
+          {/* Recovery info banner */}
+          <View style={styles.recoveryCard}>
+            <Text style={styles.recoveryTitle}>Recovery & Readiness</Text>
+            <Text style={styles.recoveryBody}>
+              {recovery?.daysSinceLastSession
+                ? `${recovery.daysSinceLastSession} days since last session. Muscle repair and glycogen replenishment happen during rest.`
+                : 'Muscles grow when resting. Sleep, hydration, and protein are your top priorities.'}
+            </Text>
+            <View style={styles.recoveryActions}>
+              <Pressable style={styles.softResetBtn} onPress={handleSoftReset}>
+                <Text style={styles.softResetBtnText}>Soft Reset to Day 1 (Push) today</Text>
+              </Pressable>
+              {isRestDayForced ? (
+                <Pressable style={styles.undoBtn} onPress={handleUndoRestDay}>
+                  <Text style={styles.undoBtnText}>Undo Rest Day (Resume Lift)</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
 
           <View style={styles.infoCard}>
-            <Text style={styles.infoTitle}>7-day rotation from Day 1</Text>
-            <Text style={styles.infoLine}>1 Push · 2 Pull · 3 Legs · 4 Rest/Run</Text>
-            <Text style={styles.infoLine}>5 Upper · 6 Lower+Core · 7 Rest/Long run</Text>
+            <Text style={styles.infoTitle}>7-day purposeful rotation</Text>
+            <Text style={styles.infoLine}>1 Push (Chest/Delts/Triceps) · 2 Pull (Lats/Rows/Arms)</Text>
+            <Text style={styles.infoLine}>3 Legs (Squat/Press/Curts/Calves) · 4 Rest</Text>
+            <Text style={styles.infoLine}>5 Upper (Press/Pull Volume) · 6 Lower · 7 Rest</Text>
           </View>
 
           <Pressable style={styles.secondaryBtn} onPress={() => router.push('/core')}>
@@ -140,8 +219,23 @@ export default function LiftScreen() {
         <Text style={styles.title}>{workout.title}</Text>
         <Text style={styles.subtitle}>{workout.focus}</Text>
         <Text style={styles.meta}>
-          ~{workout.estimatedMin} min · {workout.exercises.length} exercises
+          ~{workout.estimatedMin} min · {workout.exercises.length} purposeful exercises
         </Text>
+
+        {/* Multi-day rest detection & soft reset prompt */}
+        {recovery?.recommendSoftReset ? (
+          <View style={styles.recoveryAlertCard}>
+            <View style={styles.recoveryAlertHeader}>
+              <Text style={styles.recoveryAlertTitle}>Smart Recovery Advice</Text>
+            </View>
+            <Text style={styles.recoveryAlertBody}>
+              {recovery.message} Starting fresh ensures your training load matches your recovery.
+            </Text>
+            <Pressable style={styles.softResetBannerBtn} onPress={handleSoftReset}>
+              <Text style={styles.softResetBannerBtnText}>Soft Reset to Day 1 (Push) Today</Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         {syncNote ? <Text style={styles.syncNote}>{syncNote}</Text> : null}
 
@@ -160,7 +254,7 @@ export default function LiftScreen() {
           <View style={styles.warmupCard}>
             <Text style={styles.warmupTitle}>Warm-ups</Text>
             <Text style={styles.warmupIntro}>
-              First compound: 2 sets. Other compounds: 1 light set. Skip warm-ups on isolation.
+              First compound: 2 ramp sets. Other compounds: 1 light set. Isolations: start directly.
             </Text>
             {warmupPlan.map((item) => (
               <View key={item.exerciseId} style={styles.warmupBlock}>
@@ -182,7 +276,7 @@ export default function LiftScreen() {
           const remembered = startWeights[exercise.id];
           const warmHint = getExerciseWarmupHint(workout, exercise, remembered ?? null);
           return (
-            <View key={exercise.id} style={styles.card}>
+            <View key={`${primaryIdOf(exercise)}-${exercise.id}`} style={styles.card}>
               <Text style={styles.exIndex}>{index + 1}</Text>
               <View style={styles.exBody}>
                 <Text style={styles.exName}>{exercise.name}</Text>
@@ -208,23 +302,31 @@ export default function LiftScreen() {
         {!completedToday ? (
           <>
             <Text style={styles.howTo}>
-              After each set: log weight, reps, and Easy / Perfect / Hard. Kairos suggests up /
-              stay / down and remembers weights for next time.
+              Keep 1–2 reps in reserve on heavy sets. If sore, take a forced rest day or soft reset anytime.
             </Text>
             <Pressable style={styles.primaryBtn} onPress={() => router.push('/lift/session')}>
-              <Text style={styles.primaryBtnText}>Start workout</Text>
+              <Text style={styles.primaryBtnText}>Start workout in app</Text>
             </Pressable>
             <Pressable style={styles.secondaryBtn} onPress={() => router.push('/lift/worksheet')}>
-              <Text style={styles.secondaryBtnText}>Send to Google Sheets</Text>
+              <Text style={styles.secondaryBtnText}>Google Sheets sync</Text>
             </Pressable>
-            <Text style={styles.sheetHint}>
-              At home: send today’s set rows to Sheets. At the gym: fill Weight / Reps / Feel in the
-              Sheets app. Progress tab shows your lifts over time.
-            </Text>
+
+            {/* Recovery & Schedule Options */}
+            <View style={styles.actionsBox}>
+              <Text style={styles.actionsBoxTitle}>Need to adjust your body’s pace?</Text>
+              <View style={styles.actionsBoxRow}>
+                <Pressable style={styles.restDayBtn} onPress={handleTakeRestDay}>
+                  <Text style={styles.restDayBtnText}>Sore today · Shift +1 day</Text>
+                </Pressable>
+                <Pressable style={styles.resetBtn} onPress={handleSoftReset}>
+                  <Text style={styles.resetBtnText}>Soft Reset to Day 1</Text>
+                </Pressable>
+              </View>
+            </View>
           </>
         ) : (
           <Pressable style={styles.secondaryBtn} onPress={() => router.push('/lift/worksheet')}>
-            <Text style={styles.secondaryBtnText}>Import / export worksheet</Text>
+            <Text style={styles.secondaryBtnText}>Google Sheets sync</Text>
           </Pressable>
         )}
       </ScrollView>
@@ -247,6 +349,54 @@ function makeStyles(colors: ReturnType<typeof useTheme>['colors']) {
     subtitle: { fontSize: 16, color: colors.textMuted },
     meta: { fontSize: 14, color: colors.textMuted, marginBottom: spacing.sm },
     syncNote: { fontSize: 13, color: colors.accent, fontWeight: '600' },
+    recoveryAlertCard: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1.5,
+      borderColor: colors.accent,
+      padding: spacing.md,
+      gap: spacing.xs,
+      marginBottom: spacing.xs,
+    },
+    recoveryAlertHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    recoveryAlertTitle: { fontSize: 15, fontWeight: '700', color: colors.accent },
+    recoveryAlertBody: { fontSize: 13, color: colors.text, lineHeight: 18 },
+    softResetBannerBtn: {
+      marginTop: spacing.xs,
+      backgroundColor: colors.accent,
+      borderRadius: radius.sm,
+      paddingVertical: 10,
+      alignItems: 'center',
+    },
+    softResetBannerBtnText: { color: '#ffffff', fontWeight: '700', fontSize: 14 },
+    recoveryCard: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: spacing.md,
+      gap: spacing.xs,
+      marginVertical: spacing.xs,
+    },
+    recoveryTitle: { fontSize: 15, fontWeight: '700', color: colors.text },
+    recoveryBody: { fontSize: 13, color: colors.textMuted, lineHeight: 18 },
+    recoveryActions: { marginTop: spacing.sm, gap: spacing.xs },
+    softResetBtn: {
+      backgroundColor: colors.primary,
+      borderRadius: radius.md,
+      paddingVertical: 12,
+      alignItems: 'center',
+    },
+    softResetBtnText: { color: colors.primaryText, fontWeight: '700', fontSize: 14 },
+    undoBtn: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.md,
+      paddingVertical: 10,
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+    },
+    undoBtnText: { color: colors.text, fontWeight: '600', fontSize: 13 },
     warmupCard: {
       backgroundColor: colors.surface,
       borderRadius: radius.md,
@@ -301,11 +451,6 @@ function makeStyles(colors: ReturnType<typeof useTheme>['colors']) {
       lineHeight: 20,
       marginTop: spacing.sm,
     },
-    sheetHint: {
-      fontSize: 13,
-      color: colors.textMuted,
-      lineHeight: 18,
-    },
     primaryBtn: {
       marginTop: spacing.sm,
       backgroundColor: colors.primary,
@@ -324,8 +469,39 @@ function makeStyles(colors: ReturnType<typeof useTheme>['colors']) {
       backgroundColor: colors.surface,
     },
     secondaryBtnText: { color: colors.text, fontSize: 16, fontWeight: '700' },
-    ghostBtn: { paddingVertical: 14, alignItems: 'center' },
-    ghostBtnText: { color: colors.textMuted, fontSize: 15, fontWeight: '600' },
+    actionsBox: {
+      marginTop: spacing.md,
+      padding: spacing.md,
+      backgroundColor: colors.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      gap: spacing.sm,
+    },
+    actionsBoxTitle: { fontSize: 13, fontWeight: '600', color: colors.textMuted },
+    actionsBoxRow: { flexDirection: 'row', gap: spacing.sm },
+    restDayBtn: {
+      flex: 1,
+      paddingVertical: 10,
+      paddingHorizontal: spacing.sm,
+      borderRadius: radius.sm,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+      alignItems: 'center',
+    },
+    restDayBtnText: { fontSize: 12, fontWeight: '600', color: colors.text },
+    resetBtn: {
+      flex: 1,
+      paddingVertical: 10,
+      paddingHorizontal: spacing.sm,
+      borderRadius: radius.sm,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+      alignItems: 'center',
+    },
+    resetBtnText: { fontSize: 12, fontWeight: '600', color: colors.accent },
     infoCard: {
       marginTop: spacing.md,
       backgroundColor: colors.surface,

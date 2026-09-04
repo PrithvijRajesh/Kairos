@@ -99,11 +99,7 @@ export default function DashboardScreen() {
             <Text style={styles.cardTitle}>
               Today{todayPlan ? ` (${todayPlan.dayName})` : ''}
             </Text>
-            {todayPlan?.run ? (
-              <Text style={styles.todayLine}>Run: {todayPlan.run.title}</Text>
-            ) : todayPlan?.isRestDay && !todayPlan.run ? (
-              <Text style={styles.todayLine}>Run: rest / easy day</Text>
-            ) : null}
+            <Text style={styles.todayLine}>Cardio: optional — open Cardio to pick run / treadmill / bike</Text>
             {liftLine ? <Text style={styles.todayLine}>{liftLine}</Text> : null}
             {todayPlan?.note ? (
               <Text style={styles.todayNote}>{todayPlan.note}</Text>
@@ -116,7 +112,7 @@ export default function DashboardScreen() {
         <Text style={styles.sectionTitle}>Today's Training</Text>
         <View style={styles.grid}>
           <Pressable style={styles.tile} onPress={() => router.push('/run')}>
-            <Text style={styles.tileTitle}>Run</Text>
+            <Text style={styles.tileTitle}>Cardio</Text>
           </Pressable>
           <Pressable style={styles.tile} onPress={() => router.push('/lift')}>
             <Text style={styles.tileTitle}>Lift</Text>

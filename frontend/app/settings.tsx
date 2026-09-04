@@ -80,7 +80,7 @@ export default function SettingsScreen() {
   async function handleSaveLiftStartDate() {
     const trimmed = liftStartInput.trim();
     if (!isValidDateKey(trimmed)) {
-      Alert.alert('Invalid date', 'Use format YYYY-MM-DD (example: 2026-08-23).');
+      Alert.alert('Invalid date', 'Use format YYYY-MM-DD (example: 2026-08-24).');
       return;
     }
     setIsSaving(true);
@@ -98,7 +98,7 @@ export default function SettingsScreen() {
     setIsSaving(false);
     Alert.alert(
       'Programs aligned',
-      `Core Workout A and Lift Push both start ${formatProgramStartLabel(KAIROS_PROGRAM_START)} (Sunday).`
+      `Core Workout A and Lift Push both start ${formatProgramStartLabel(KAIROS_PROGRAM_START)}.`
     );
   }
 
@@ -121,14 +121,14 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle}>Programs</Text>
         <View style={styles.card}>
           <Text style={styles.hint}>
-            Official start: Sunday Aug 23, 2026 — Core Workout A + Lift Push (Day 1).
+            Official start: Monday Aug 24, 2026 — Core Workout A + Lift Push (Day 1).
           </Text>
           <Pressable
             style={styles.button}
             onPress={handleResetBothToProgramStart}
             disabled={isSaving}
           >
-            <Text style={styles.buttonText}>Set both to Sun Aug 23, 2026</Text>
+            <Text style={styles.buttonText}>Set both to Mon Aug 24, 2026</Text>
           </Pressable>
         </View>
 

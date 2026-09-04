@@ -37,30 +37,32 @@ import {
   type GymExercise,
   type GymWorkout,
 } from '../../gymWorkouts';
-import { applySwapsToWorkout, loadTodaysSwaps, primaryIdOf, setExerciseSwap } from '../../gymSwaps';
+import {
+  applySwapsToWorkout,
+  loadTodaysSwaps,
+  primaryIdOf,
+  setExerciseSwap,
+} from '../../gymSwaps';
 import { useTheme } from '../../ThemeContext';
 import { radius, spacing } from '../../theme';
-
-type Phase = 'do_set' | 'rest';
 
 export default function LiftSessionScreen() {
   const { colors } = useTheme();
   const [workout, setWorkout] = useState<GymWorkout | null>(null);
-  const exercises = useMemo(() => workout?.exercises ?? [], [workout]);
-
-  const [ready, setReady] = useState(false);
   const [exerciseIndex, setExerciseIndex] = useState(0);
   const [setNumber, setSetNumber] = useState(1);
   const [weightInput, setWeightInput] = useState('');
   const [repsInput, setRepsInput] = useState('');
   const [feel, setFeel] = useState<SetFeel | null>(null);
-  const [phase, setPhase] = useState<Phase>('do_set');
-  const [restSeconds, setRestSeconds] = useState(0);
   const [lastRec, setLastRec] = useState<WeightRecommendation | null>(null);
   const [sessionLogs, setSessionLogs] = useState<ExerciseSessionLog[]>([]);
   const [currentSets, setCurrentSets] = useState<LoggedSet[]>([]);
+  const [phase, setPhase] = useState<'do_set' | 'rest'>('do_set');
+  const [restSeconds, setRestSeconds] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [ready, setReady] = useState(false);
 
+  const exercises = workout?.exercises ?? [];
   const current = exercises[exerciseIndex];
 
   useEffect(() => {
@@ -94,7 +96,6 @@ export default function LiftSessionScreen() {
 
   async function onSwapCurrent(next: GymExercise) {
     if (!workout || !current) return;
-    // Only allow swap before logging sets on this exercise
     if (currentSets.length > 0) {
       Alert.alert('Finish this exercise', 'Log remaining sets first, or go back and restart.');
       return;
@@ -126,26 +127,11 @@ export default function LiftSessionScreen() {
 
   const styles = makeStyles(colors);
 
-  if (!ready) {
-    return (
-      <View style={[styles.container, styles.center]}>
-        <Text style={styles.body}>Loading…</Text>
-      </View>
-    );
-  }
-
-  if (!workout) {
-    return (
-      <View style={[styles.container, styles.center]}>
-        <Text style={styles.body}>Rest day — no lift programmed.</Text>
-        <Pressable style={styles.primaryButton} onPress={() => router.replace('/lift')}>
-          <Text style={styles.primaryButtonText}>Back</Text>
-        </Pressable>
-      </View>
-    );
-  }
-
   async function finishWorkout(finalLogs: ExerciseSessionLog[]) {
+    if (finalLogs.length === 0) {
+      Alert.alert('No sets logged', 'Log at least one set to save.');
+      return;
+    }
     setSaving(true);
     try {
       const state = await loadGymProgress();
@@ -478,8 +464,8 @@ function makeStyles(colors: ReturnType<typeof useTheme>['colors']) {
       borderRadius: radius.sm,
       paddingHorizontal: spacing.sm,
       paddingVertical: 12,
-      color: '#111827',
-      backgroundColor: '#ffffff',
+      color: colors.text,
+      backgroundColor: colors.background,
       fontSize: 20,
       fontWeight: '700',
     },

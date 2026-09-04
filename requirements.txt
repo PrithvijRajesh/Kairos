@@ -1,0 +1,18 @@
+# Kairos — Mac setup (Node.js project, not Python)
+#
+# Install system prerequisites first, then run:
+#   ./setup-mac.sh
+# or manually:
+#   cd backend && npm install
+#   cd ../frontend && npm install
+#
+# Required:
+#   Node.js 20+  (includes npm)
+#   Optional: Expo Go app on your phone for mobile testing
+#
+# Install Node on Mac (pick one):
+#   brew install node
+#   — or download from https://nodejs.org
+
+node>=20.0.0
+npm>=10.0.0

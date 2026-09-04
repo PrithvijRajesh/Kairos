@@ -8,7 +8,7 @@ import {
 } from './programConfig';
 import { loadAppSettings, saveAppSettings } from './settingsStorage';
 
-/** One-time: align Core + Lift start to KAIROS_PROGRAM_START (Sun Aug 23, 2026). */
+/** One-time: align Core + Lift start to KAIROS_PROGRAM_START (Mon Aug 24, 2026). */
 export async function runProgramMigrationIfNeeded(): Promise<void> {
   const raw = await AsyncStorage.getItem(PROGRAM_MIGRATION_KEY);
   if (raw === String(PROGRAM_CONFIG_VERSION)) {

@@ -84,7 +84,7 @@ export default function WeekScreen() {
                 <Text style={styles.rest}>Rest / mobility</Text>
               ) : (
                 <>
-                  {day.run ? <Text style={styles.line}>Run: {day.run.title}</Text> : null}
+                  {day.run ? <Text style={styles.line}>Cardio: {day.run.title}</Text> : null}
                   {day.gym ? <Text style={styles.line}>Lift: {day.gym.title}</Text> : null}
                 </>
               )}

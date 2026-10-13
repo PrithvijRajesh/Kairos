@@ -1,23 +1,6 @@
-// Redirect stub — goals live on index (home).
-import { useEffect } from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
-import { router } from 'expo-router';
-import { useTheme } from '../ThemeContext';
+// Removed — onboarding/goals flow.
+import { Redirect } from 'expo-router';
 
-export default function OnboardingScreen() {
-  const { colors } = useTheme();
-
-  useEffect(() => {
-    router.replace('/');
-  }, []);
-
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ActivityIndicator color={colors.accent} />
-    </View>
-  );
+export default function OnboardingRemoved() {
+  return <Redirect href="/dashboard" />;
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-});

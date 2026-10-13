@@ -262,11 +262,13 @@ export default function LiftSessionScreen() {
         ) : null}
         {setNumber === 1 && currentSets.length === 0
           ? (() => {
-              const hint = getExerciseWarmupHint(
-                workout,
-                current,
-                weightInput ? Number(weightInput) : null
-              );
+              const hint = workout
+                ? getExerciseWarmupHint(
+                    workout,
+                    current,
+                    weightInput ? Number(weightInput) : null
+                  )
+                : null;
               return hint ? (
                 <View style={styles.warmupBanner}>
                   <Text style={styles.warmupBannerTitle}>Warm-up first</Text>
@@ -389,6 +391,12 @@ export default function LiftSessionScreen() {
 }
 
 function makeStyles(colors: ReturnType<typeof useTheme>['colors']) {
+  const panel = {
+    backgroundColor: colors.surfaceRaised,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+  } as const;
+
   return StyleSheet.create({
     flex: { flex: 1 },
     container: { padding: spacing.lg, gap: spacing.md, paddingBottom: 40 },
@@ -398,92 +406,61 @@ function makeStyles(colors: ReturnType<typeof useTheme>['colors']) {
       justifyContent: 'space-between',
       alignItems: 'center',
     },
-    meta: { fontSize: 14, fontWeight: '600', color: colors.textMuted },
-    restHint: { fontSize: 13, color: colors.textMuted },
-    title: { fontSize: 26, fontWeight: '700', color: colors.text },
-    prescription: { fontSize: 16, fontWeight: '600', color: colors.text },
+    meta: { fontSize: 13, fontWeight: '500', color: colors.textSoft },
+    restHint: { fontSize: 12, fontWeight: '500', color: colors.textMuted },
+    title: {
+      fontSize: 26,
+      fontWeight: '600',
+      letterSpacing: -0.5,
+      color: colors.text,
+    },
+    prescription: { fontSize: 15, fontWeight: '500', color: colors.textMuted },
     note: { fontSize: 13, color: colors.textMuted },
     warmupBanner: {
       backgroundColor: colors.accentSoft,
-      borderRadius: radius.md,
-      borderWidth: 1,
-      borderColor: colors.accent,
+      borderRadius: radius.lg,
       padding: spacing.md,
       gap: 4,
     },
-    warmupBannerTitle: { fontSize: 13, fontWeight: '700', color: colors.accent },
+    warmupBannerTitle: { fontSize: 13, fontWeight: '600', color: colors.accent },
     warmupBannerBody: { fontSize: 14, color: colors.text, lineHeight: 20 },
     body: { fontSize: 16, color: colors.text, textAlign: 'center' },
-    recCard: {
-      backgroundColor: colors.surface,
-      borderRadius: radius.md,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: spacing.md,
-      gap: 4,
-    },
-    recUp: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
-    recDown: { borderColor: '#d97706', backgroundColor: '#fffbeb' },
-    recEyebrow: {
-      fontSize: 12,
-      fontWeight: '700',
-      color: colors.accent,
-      textTransform: 'uppercase',
-      letterSpacing: 0.4,
-    },
-    recTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
+    recCard: { ...panel, gap: 4 },
+    recUp: { backgroundColor: colors.accentSoft },
+    recDown: { backgroundColor: colors.backgroundAlt },
+    recEyebrow: { fontSize: 12, fontWeight: '600', color: colors.accent },
+    recTitle: { fontSize: 18, fontWeight: '600', color: colors.text },
     recReason: { fontSize: 14, color: colors.textMuted, lineHeight: 20 },
-    restBox: {
-      alignItems: 'center',
-      backgroundColor: colors.surface,
-      borderRadius: radius.lg,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: spacing.lg,
-      gap: spacing.sm,
-    },
+    restBox: { alignItems: 'center', ...panel, padding: spacing.lg, gap: spacing.sm },
     timerText: {
       fontSize: 52,
-      fontWeight: '700',
+      fontWeight: '600',
       color: colors.text,
       fontVariant: ['tabular-nums'],
+      letterSpacing: -1,
     },
-    phaseLabel: { fontSize: 15, color: colors.textMuted, textAlign: 'center' },
-    logCard: {
-      backgroundColor: colors.surface,
-      borderRadius: radius.md,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: spacing.md,
-      gap: spacing.sm,
-    },
-    label: { fontSize: 14, fontWeight: '700', color: colors.text },
+    phaseLabel: { fontSize: 14, color: colors.textMuted, textAlign: 'center' },
+    logCard: { ...panel, gap: spacing.sm },
+    label: { fontSize: 13, fontWeight: '500', color: colors.textSoft },
     input: {
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: radius.sm,
+      borderRadius: radius.md,
       paddingHorizontal: spacing.sm,
-      paddingVertical: 12,
+      paddingVertical: 14,
       color: colors.text,
       backgroundColor: colors.background,
-      fontSize: 20,
-      fontWeight: '700',
+      fontSize: 22,
+      fontWeight: '600',
     },
     feelRow: { flexDirection: 'row', gap: spacing.sm },
     feelButton: {
       flex: 1,
       paddingVertical: 14,
-      borderRadius: radius.sm,
-      borderWidth: 1,
-      borderColor: colors.border,
+      borderRadius: radius.md,
       alignItems: 'center',
-      backgroundColor: colors.background,
+      backgroundColor: colors.backgroundAlt,
     },
-    feelSelected: {
-      backgroundColor: colors.accentSoft,
-      borderColor: colors.accent,
-    },
-    feelText: { fontSize: 14, fontWeight: '600', color: colors.text },
+    feelSelected: { backgroundColor: colors.accentSoft },
+    feelText: { fontSize: 13, fontWeight: '600', color: colors.text },
     feelTextSelected: { color: colors.accent },
     primaryButton: {
       marginTop: spacing.xs,
@@ -492,25 +469,16 @@ function makeStyles(colors: ReturnType<typeof useTheme>['colors']) {
       paddingVertical: 15,
       alignItems: 'center',
     },
-    primaryButtonText: { color: colors.primaryText, fontSize: 16, fontWeight: '700' },
+    primaryButtonText: { color: colors.primaryText, fontSize: 15, fontWeight: '600' },
     secondaryButton: {
       borderRadius: radius.md,
-      borderWidth: 1,
-      borderColor: colors.border,
       paddingVertical: 12,
       paddingHorizontal: spacing.md,
-      backgroundColor: colors.surface,
+      backgroundColor: colors.backgroundAlt,
     },
-    secondaryButtonText: { fontSize: 15, fontWeight: '600', color: colors.text },
+    secondaryButtonText: { fontSize: 14, fontWeight: '600', color: colors.text },
     disabled: { opacity: 0.5 },
-    historyCard: {
-      backgroundColor: colors.surface,
-      borderRadius: radius.md,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: spacing.md,
-      gap: 4,
-    },
+    historyCard: { ...panel, gap: 4 },
     historyLine: { fontSize: 14, color: colors.textMuted },
   });
 }

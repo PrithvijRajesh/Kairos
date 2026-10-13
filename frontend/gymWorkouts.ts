@@ -46,14 +46,14 @@ export type DaySchedule =
   | { kind: 'rest'; label: string; hint: string };
 
 /**
- * Final program goals: stronger, slightly denser (sleeper), strong legs + core for running.
+ * Goals: stronger, denser sleeper build, legs that support running.
  *
  * Week: Push → Pull → Legs → Rest → Upper → Lower → Rest
  *
  * Rules:
- * - Push/Legs = strength (lower reps, longer rest). Upper/Lower = volume (8–12).
- * - Leave ~1–2 reps in reserve on compounds. Hit top of range → add weight next time.
- * - Rest days recover — sleep and eat beat extra junk volume.
+ * - Push/Legs = strength bias (lower reps, longer rest). Upper/Lower = volume (8–12).
+ * - Leave ~1–2 RIR on compounds. Hit top of range → add weight next time.
+ * - Hip hinge + eccentric hamstrings included for strength and run durability.
  */
 export const gymWorkouts: Record<GymWorkout['id'], GymWorkout> = {
   push: {
@@ -63,14 +63,14 @@ export const gymWorkouts: Record<GymWorkout['id'], GymWorkout> = {
     estimatedMin: 55,
     exercises: [
       {
-        id: 'flat_machine_chest',
-        name: 'Machine Chest Press',
+        id: 'flat_db_bench',
+        name: 'Flat Dumbbell Bench Press',
         sets: 4,
         repMin: 5,
         repMax: 8,
-        incrementLbs: 10,
+        incrementLbs: 5,
         restSec: 150,
-        notes: 'Main chest press · squeeze at lockout · hit 8 on all sets → add weight next time',
+        notes: 'Main press · per dumbbell · full stretch · hit 8 on all sets → add weight',
         compound: true,
         alternatives: [
           {
@@ -80,10 +80,10 @@ export const gymWorkouts: Record<GymWorkout['id'], GymWorkout> = {
             incrementLbs: 5,
           },
           {
-            id: 'flat_db_bench',
-            name: 'Flat Dumbbell Bench Press',
-            notes: 'Per dumbbell',
-            incrementLbs: 5,
+            id: 'flat_machine_chest',
+            name: 'Machine Chest Press',
+            notes: 'Squeeze at lockout',
+            incrementLbs: 10,
           },
         ],
       },
@@ -103,6 +103,21 @@ export const gymWorkouts: Record<GymWorkout['id'], GymWorkout> = {
             name: 'Incline Machine Press',
             incrementLbs: 10,
           },
+        ],
+      },
+      {
+        id: 'db_lateral_raise',
+        name: 'Dumbbell Lateral Raises',
+        sets: 3,
+        repMin: 10,
+        repMax: 15,
+        incrementLbs: 2.5,
+        restSec: 60,
+        notes: 'Per dumbbell · before OHP so side delts stay fresh · lead with elbows',
+        compound: false,
+        alternatives: [
+          { id: 'cable_lateral_raise', name: 'Cable Lateral Raises', incrementLbs: 5 },
+          { id: 'lateral_machine', name: 'Machine Lateral Raise', incrementLbs: 5 },
         ],
       },
       {
@@ -130,21 +145,6 @@ export const gymWorkouts: Record<GymWorkout['id'], GymWorkout> = {
         ],
       },
       {
-        id: 'db_lateral_raise',
-        name: 'Dumbbell Lateral Raises',
-        sets: 3,
-        repMin: 10,
-        repMax: 15,
-        incrementLbs: 2.5,
-        restSec: 60,
-        notes: 'Per dumbbell · slight lean · lead with elbows',
-        compound: false,
-        alternatives: [
-          { id: 'cable_lateral_raise', name: 'Cable Lateral Raises', incrementLbs: 5 },
-          { id: 'lateral_machine', name: 'Machine Lateral Raise', incrementLbs: 5 },
-        ],
-      },
-      {
         id: 'rope_pushdown',
         name: 'Rope Pushdowns',
         sets: 3,
@@ -152,7 +152,7 @@ export const gymWorkouts: Record<GymWorkout['id'], GymWorkout> = {
         repMax: 12,
         incrementLbs: 5,
         restSec: 60,
-        notes: 'Elbows pinned · spread rope at bottom · lateral triceps',
+        notes: 'Elbows pinned · spread rope at bottom',
         compound: false,
         alternatives: [
           { id: 'bar_pushdown', name: 'Straight-Bar Pushdowns', incrementLbs: 5 },
@@ -161,12 +161,12 @@ export const gymWorkouts: Record<GymWorkout['id'], GymWorkout> = {
       {
         id: 'oh_cable_tricep_ext',
         name: 'Overhead Cable Triceps Extension',
-        sets: 3,
+        sets: 2,
         repMin: 10,
         repMax: 15,
         incrementLbs: 5,
         restSec: 60,
-        notes: 'Long head focus · elbows stay high · deep stretch',
+        notes: 'Long head · elbows high · deep stretch',
         compound: false,
         alternatives: [
           {
@@ -322,7 +322,7 @@ export const gymWorkouts: Record<GymWorkout['id'], GymWorkout> = {
   legs: {
     id: 'legs',
     title: 'Legs',
-    focus: 'Quads · hamstrings · calves',
+    focus: 'Quads · hinge · hamstrings · calves',
     estimatedMin: 55,
     exercises: [
       {
@@ -333,7 +333,7 @@ export const gymWorkouts: Record<GymWorkout['id'], GymWorkout> = {
         repMax: 8,
         incrementLbs: 10,
         restSec: 180,
-        notes: 'Main strength lift · leave 1–2 in reserve · hit 8 on all sets → add weight next time',
+        notes: 'Main strength lift · 1–2 RIR · hit 8 on all sets → add weight next time',
         compound: true,
         alternatives: [
           { id: 'hack_squat', name: 'Hack Squat', incrementLbs: 20 },
@@ -346,34 +346,31 @@ export const gymWorkouts: Record<GymWorkout['id'], GymWorkout> = {
         ],
       },
       {
-        id: 'leg_press',
-        name: 'Leg Press',
+        id: 'rdl',
+        name: 'Romanian Deadlift',
         sets: 3,
-        repMin: 8,
-        repMax: 12,
-        incrementLbs: 20,
-        restSec: 120,
-        notes: 'Controlled depth · solid quad volume without lower-back strain',
+        repMin: 6,
+        repMax: 10,
+        incrementLbs: 10,
+        restSec: 150,
+        notes: 'Hip hinge · soft knees · bar close · feel hamstrings stretch · brace hard',
         compound: true,
         alternatives: [
-          { id: 'hack_squat_press', name: 'Hack Squat', incrementLbs: 20 },
-        ],
-      },
-      {
-        id: 'leg_extension',
-        name: 'Leg Extension',
-        sets: 3,
-        repMin: 10,
-        repMax: 15,
-        incrementLbs: 10,
-        restSec: 60,
-        notes: 'Quad isolation · knee drive for running · squeeze 1 sec at top',
-        compound: false,
-        alternatives: [
           {
-            id: 'leg_press_quad',
-            name: 'Leg Press',
-            notes: 'Higher reps, feet lower on platform',
+            id: 'db_rdl',
+            name: 'Dumbbell Romanian Deadlift',
+            notes: 'Per pair total or log one DB ×2 · same hinge pattern',
+            incrementLbs: 5,
+          },
+          {
+            id: 'trap_bar_rdl',
+            name: 'Trap-Bar RDL',
+            incrementLbs: 10,
+          },
+          {
+            id: 'leg_press',
+            name: 'Seated Leg Press',
+            notes: 'Only if hinge equipment is gone · controlled depth',
             incrementLbs: 20,
           },
         ],
@@ -386,75 +383,84 @@ export const gymWorkouts: Record<GymWorkout['id'], GymWorkout> = {
         repMax: 12,
         incrementLbs: 10,
         restSec: 75,
-        notes: 'Hamstring strength · slow lower · balances quads & supports running',
+        notes: 'Knee-flexor strength · slow lower',
         compound: false,
         alternatives: [
           { id: 'lying_leg_curl', name: 'Lying Leg Curl', incrementLbs: 10 },
         ],
       },
       {
-        id: 'hyperextension_45',
-        name: '45° Hyperextension',
-        sets: 3,
-        repMin: 8,
-        repMax: 12,
+        id: 'nordic_hamstring',
+        name: 'Nordic Hamstring Curl',
+        sets: 2,
+        repMin: 4,
+        repMax: 8,
         incrementLbs: 5,
         restSec: 90,
-        notes: 'Posterior chain · squeeze glutes at top · if no bench, use cable pull-through',
-        compound: true,
+        bodyweight: true,
+        notes: 'Eccentric focus · log 0 or band assist · lower slowly · run durability',
+        compound: false,
         alternatives: [
           {
-            id: 'cable_pull_through',
-            name: 'Cable Pull-Through',
-            notes: 'Hinge hips back into cable · squeeze glutes at top',
-            incrementLbs: 10,
-          },
-          {
-            id: 'back_extension_machine',
-            name: 'Back Extension Machine',
-            incrementLbs: 10,
-          },
-          {
-            id: 'bb_hip_thrust_legs',
-            name: 'Barbell Hip Thrust',
-            notes: 'Upper back on bench · pause 1 sec at top',
-            incrementLbs: 10,
-          },
-          {
-            id: 'hyperextension_bw',
-            name: '45° Hyperextension (bodyweight)',
+            id: 'nordic_assisted',
+            name: 'Band-Assisted Nordic Curl',
             bodyweight: true,
-            notes: 'Log 0 if unweighted',
+            notes: 'Log 0 · same slow lower',
+          },
+          {
+            id: 'single_leg_rdl',
+            name: 'Single-Leg Dumbbell RDL',
+            notes: 'Per side · hinge · if Nordics not available',
+            incrementLbs: 5,
+          },
+        ],
+      },
+      {
+        id: 'leg_extension',
+        name: 'Leg Extension',
+        sets: 2,
+        repMin: 10,
+        repMax: 15,
+        incrementLbs: 10,
+        restSec: 60,
+        notes: 'Quad finisher · squeeze 1 sec at top',
+        compound: false,
+        alternatives: [
+          {
+            id: 'leg_press_quad',
+            name: 'Leg Press',
+            notes: 'Higher reps, feet lower on platform',
+            incrementLbs: 20,
           },
         ],
       },
       {
         id: 'seated_calf',
         name: 'Seated Calf Raises',
-        sets: 4,
+        sets: 3,
         repMin: 10,
         repMax: 15,
         incrementLbs: 10,
         restSec: 60,
-        notes: 'Full stretch at bottom · pause at top · ankle durability for running',
+        notes: 'Full stretch · pause at top · ankle durability for running',
         compound: false,
         alternatives: [
           {
+            id: 'standing_calf_raise',
+            name: 'Standing Calf Raises',
+            notes: 'Machine or smith · tracked separately',
+            incrementLbs: 10,
+          },
+          {
             id: 'leg_press_calf',
             name: 'Leg Press Calf Raises',
-            notes: 'Balls of feet on platform edge · full stretch',
             incrementLbs: 20,
           },
           {
             id: 'single_leg_db_calf',
             name: 'Single-Leg Dumbbell Calf Raise',
-            notes: 'Holding a DB · same reps each side',
+            notes: 'Same reps each side',
             incrementLbs: 5,
-          },
-          {
-            id: 'standing_calf_raise',
-            name: 'Standing Calf Raises',
-            incrementLbs: 10,
           },
         ],
       },
@@ -550,16 +556,21 @@ export const gymWorkouts: Record<GymWorkout['id'], GymWorkout> = {
       },
       {
         id: 'upper_biceps',
-        name: 'Incline Dumbbell Curl',
+        name: 'Cable Curl',
         sets: 3,
         repMin: 10,
         repMax: 12,
-        incrementLbs: 2.5,
+        incrementLbs: 5,
         restSec: 60,
-        notes: 'Per dumbbell · deep biceps stretch',
+        notes: 'Elbows pinned · full squeeze at top · control the lower',
         compound: false,
         alternatives: [
-          { id: 'upper_cable_curl', name: 'Cable Curl', incrementLbs: 5 },
+          {
+            id: 'upper_incline_db_curl',
+            name: 'Incline Dumbbell Curl',
+            notes: 'Per dumbbell · deep stretch',
+            incrementLbs: 2.5,
+          },
           { id: 'upper_hammer_curl', name: 'Hammer Curl', incrementLbs: 2.5 },
         ],
       },
@@ -569,41 +580,69 @@ export const gymWorkouts: Record<GymWorkout['id'], GymWorkout> = {
   lower: {
     id: 'lower',
     title: 'Lower',
-    focus: 'Hinge · quads · hamstrings · calves',
+    focus: 'Unilateral · hinge · hamstrings · calves',
     estimatedMin: 50,
     exercises: [
       {
-        id: 'lower_hip_thrust',
-        name: 'Hip Thrust Machine',
+        id: 'lower_reverse_lunge',
+        name: 'Dumbbell Reverse Lunge',
         sets: 3,
         repMin: 8,
         repMax: 12,
-        incrementLbs: 10,
-        restSec: 120,
-        notes: 'Posterior chain · pause at lockout',
+        incrementLbs: 5,
+        restSec: 90,
+        notes:
+          'Per leg · front knee tracks mid-foot · drive through front heel',
         compound: true,
         alternatives: [
-          { id: 'lower_bb_hip_thrust', name: 'Barbell Hip Thrust', incrementLbs: 10 },
           {
-            id: 'lower_cable_pull_through',
-            name: 'Cable Pull-Through',
+            id: 'lower_walking_lunge',
+            name: 'Dumbbell Walking Lunge',
+            notes: 'Per leg · upright torso',
+            incrementLbs: 5,
+          },
+          {
+            id: 'lower_db_step_up',
+            name: 'Dumbbell Step-Up',
+            notes: 'Knee-high box · no push-off from back leg',
+            incrementLbs: 5,
+          },
+          {
+            id: 'lower_bulgarian',
+            name: 'Bulgarian Split Squat',
+            notes: 'Rear foot elevated · upright torso',
+            incrementLbs: 5,
+          },
+          {
+            id: 'lower_hip_thrust',
+            name: 'Hip Thrust Machine',
             incrementLbs: 10,
           },
         ],
       },
       {
-        id: 'lower_leg_press',
-        name: 'Leg Press',
+        id: 'lower_rdl',
+        name: 'Romanian Deadlift',
         sets: 3,
         repMin: 8,
         repMax: 12,
-        incrementLbs: 20,
+        incrementLbs: 10,
         restSec: 120,
-        notes: 'Controlled depth',
+        notes: 'Volume hinge · soft knees · hamstring stretch · brace',
         compound: true,
         alternatives: [
+          {
+            id: 'lower_db_rdl',
+            name: 'Dumbbell Romanian Deadlift',
+            incrementLbs: 5,
+          },
+          {
+            id: 'lower_leg_press',
+            name: 'Seated Leg Press',
+            notes: 'If bars are taken · controlled depth',
+            incrementLbs: 20,
+          },
           { id: 'lower_hack_squat', name: 'Hack Squat', incrementLbs: 20 },
-          { id: 'lower_back_squat', name: 'Back Squat', incrementLbs: 10 },
         ],
       },
       {
@@ -620,25 +659,46 @@ export const gymWorkouts: Record<GymWorkout['id'], GymWorkout> = {
         ],
       },
       {
-        id: 'lower_leg_extension',
-        name: 'Leg Extension',
-        sets: 3,
-        repMin: 10,
-        repMax: 12,
-        incrementLbs: 10,
-        restSec: 60,
+        id: 'lower_nordic',
+        name: 'Nordic Hamstring Curl',
+        sets: 2,
+        repMin: 4,
+        repMax: 8,
+        incrementLbs: 5,
+        restSec: 90,
+        bodyweight: true,
+        notes: 'Eccentric · log 0 · slow lower · complements Legs day',
         compound: false,
+        alternatives: [
+          {
+            id: 'lower_nordic_assisted',
+            name: 'Band-Assisted Nordic Curl',
+            bodyweight: true,
+          },
+          {
+            id: 'lower_single_leg_rdl',
+            name: 'Single-Leg Dumbbell RDL',
+            notes: 'Per side',
+            incrementLbs: 5,
+          },
+        ],
       },
       {
         id: 'lower_calf',
-        name: 'Seated Calf Raises',
+        name: 'Standing Calf Raises',
         sets: 3,
         repMin: 10,
         repMax: 15,
         incrementLbs: 10,
         restSec: 60,
+        notes: 'Gastroc bias · full stretch · pairs with seated calves on Legs',
         compound: false,
         alternatives: [
+          {
+            id: 'lower_seated_calf',
+            name: 'Seated Calf Raises',
+            incrementLbs: 10,
+          },
           {
             id: 'lower_leg_press_calf',
             name: 'Leg Press Calf Raises',
@@ -648,11 +708,6 @@ export const gymWorkouts: Record<GymWorkout['id'], GymWorkout> = {
             id: 'lower_single_leg_db_calf',
             name: 'Single-Leg Dumbbell Calf Raise',
             incrementLbs: 5,
-          },
-          {
-            id: 'lower_standing_calf',
-            name: 'Standing Calf Raises',
-            incrementLbs: 10,
           },
         ],
       },

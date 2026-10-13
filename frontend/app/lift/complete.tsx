@@ -58,7 +58,7 @@ export default function LiftCompleteScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.check}>✓</Text>
+      <Text style={styles.check}>Complete</Text>
       <Text style={styles.title}>{lastTitle} logged</Text>
       <Text style={styles.subtitle}>
         Saved on this phone. Weights will preload next time you hit these lifts.
@@ -118,43 +118,45 @@ function makeStyles(colors: ReturnType<typeof useTheme>['colors']) {
       gap: spacing.md,
       backgroundColor: colors.background,
     },
-    check: { fontSize: 48, textAlign: 'center', color: colors.accent, fontWeight: '700' },
-    title: { fontSize: 28, fontWeight: '700', textAlign: 'center', color: colors.text },
+    check: { fontSize: 13, fontWeight: '500', textAlign: 'center', color: colors.accent },
+    title: {
+      fontSize: 28,
+      fontWeight: '600',
+      letterSpacing: -0.6,
+      textAlign: 'center',
+      color: colors.text,
+    },
     subtitle: {
-      fontSize: 16,
+      fontSize: 15,
       textAlign: 'center',
       color: colors.textMuted,
       lineHeight: 22,
     },
     card: {
-      backgroundColor: colors.surface,
+      backgroundColor: colors.accentSoft,
       borderRadius: radius.lg,
-      borderWidth: 1,
-      borderColor: colors.border,
       padding: spacing.lg,
       alignItems: 'center',
       gap: spacing.xs,
       marginVertical: spacing.sm,
     },
-    cardLabel: { fontSize: 14, color: colors.textMuted, fontWeight: '600' },
-    cardValue: { fontSize: 32, fontWeight: '700', color: colors.accent },
+    cardLabel: { fontSize: 13, color: colors.accentMuted, fontWeight: '500' },
+    cardValue: { fontSize: 32, fontWeight: '600', color: colors.text },
     cardMeta: { fontSize: 13, color: colors.textMuted, textAlign: 'center', marginTop: 4 },
     button: {
       backgroundColor: colors.primary,
       borderRadius: radius.md,
+      paddingVertical: 15,
+      alignItems: 'center',
+    },
+    buttonText: { color: colors.primaryText, fontWeight: '600', fontSize: 15 },
+    secondaryBtn: {
+      borderRadius: radius.md,
       paddingVertical: 14,
       alignItems: 'center',
+      backgroundColor: colors.backgroundAlt,
     },
-    buttonText: { color: colors.primaryText, fontWeight: '700', fontSize: 16 },
-    secondaryBtn: {
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: radius.md,
-      paddingVertical: 12,
-      alignItems: 'center',
-      backgroundColor: colors.surface,
-    },
-    secondaryBtnText: { color: colors.text, fontWeight: '600', fontSize: 15 },
+    secondaryBtnText: { color: colors.text, fontWeight: '600', fontSize: 14 },
     disabled: { opacity: 0.5 },
   });
 }

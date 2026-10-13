@@ -28,8 +28,8 @@ export function AlternativeButton({ exercise, onChange }: Props) {
   function openPicker() {
     const variants = listSelectableVariants(exercise);
     Alert.alert(
-      'Alternative equipment',
-      'Same movement pattern — pick what’s free.',
+      'Equipment',
+      'Same movement — pick what’s free. Each option keeps its own weight history.',
       [
         ...variants.map((v) => ({
           text: v.id === exercise.id ? `✓ ${v.name}` : v.name,
@@ -49,7 +49,7 @@ export function AlternativeButton({ exercise, onChange }: Props) {
 
   return (
     <Pressable style={styles.button} onPress={openPicker}>
-      <Text style={styles.text}>{swapped ? 'Switch exercise' : 'Alternative'}</Text>
+      <Text style={styles.text}>{swapped ? 'Switch equipment' : 'Alternatives'}</Text>
     </Pressable>
   );
 }
@@ -62,13 +62,11 @@ function makeStyles(colors: ReturnType<typeof useTheme>['colors']) {
       paddingHorizontal: spacing.sm,
       paddingVertical: 6,
       borderRadius: radius.sm,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.background,
+      backgroundColor: colors.accentSoft,
     },
     text: {
-      fontSize: 13,
-      fontWeight: '700',
+      fontSize: 12,
+      fontWeight: '600',
       color: colors.accent,
     },
   });

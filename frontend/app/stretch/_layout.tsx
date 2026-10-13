@@ -1,4 +1,4 @@
-// Stretch section: list, guided session, and completion.
+// Stretch section layout.
 import { Pressable, Text } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { useTheme } from '../../ThemeContext';
@@ -11,8 +11,9 @@ export default function StretchLayout() {
     <Stack
       screenOptions={{
         headerStyle: { backgroundColor: colors.background },
+        headerShadowVisible: false,
         headerTintColor: colors.text,
-        headerTitleStyle: { fontWeight: '700' },
+        headerTitleStyle: { fontWeight: '700', fontSize: 16 },
         contentStyle: { backgroundColor: colors.background },
         headerBackTitle: 'Back',
       }}
@@ -27,10 +28,10 @@ export default function StretchLayout() {
       <Stack.Screen
         name="session"
         options={{
-          title: 'Stretch session',
+          title: 'Session',
           headerLeft: () => (
             <Pressable onPress={() => router.back()} hitSlop={12} style={{ paddingHorizontal: 4 }}>
-              <Text style={{ fontSize: 17, fontWeight: '600', color: colors.accent }}>‹ Back</Text>
+              <Text style={{ fontSize: 15, fontWeight: '600', color: colors.text }}>Back</Text>
             </Pressable>
           ),
         }}

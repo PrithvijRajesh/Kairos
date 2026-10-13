@@ -1,11 +1,10 @@
-// Shared header back control for nested stacks (Lift / Core / Stretch).
+// Shared header back control for nested stacks.
 import { Pressable, Text, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 
 import { useTheme } from './ThemeContext';
 
 type Props = {
-  /** Where to go if there's no stack history (e.g. deep link). */
   fallbackHref?: string;
   label?: string;
 };
@@ -23,7 +22,7 @@ export function HeaderBackButton({ fallbackHref = '/dashboard', label = 'Home' }
 
   return (
     <Pressable onPress={onPress} hitSlop={12} style={styles.hit}>
-      <Text style={[styles.text, { color: colors.accent }]}>‹ {label}</Text>
+      <Text style={[styles.text, { color: colors.text }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -32,10 +31,11 @@ const styles = StyleSheet.create({
   hit: {
     paddingHorizontal: 4,
     paddingVertical: 4,
-    marginRight: 4,
+    marginRight: 8,
   },
   text: {
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: '600',
+    letterSpacing: 0.2,
   },
 });

@@ -271,6 +271,28 @@ export function bikeMinutesForMiles(miles: number): number {
   return Math.round(miles * 8);
 }
 
+/** Easy treadmill time ≈ 10 min per outdoor mile (conversational pace). */
+export function treadmillMinutesForMiles(miles: number): number {
+  return Math.round(miles * 10);
+}
+
+/** Cross-mode base-building equivalents for a given outdoor mileage. */
+export function baseBuildingEquivalents(miles: number): {
+  runMi: number;
+  treadmillMin: number;
+  bikeMin: number;
+  line: string;
+} {
+  const treadmillMin = treadmillMinutesForMiles(miles);
+  const bikeMin = bikeMinutesForMiles(miles);
+  return {
+    runMi: miles,
+    treadmillMin,
+    bikeMin,
+    line: `Same base: outdoor ${formatMiles(miles)} · treadmill ~${treadmillMin} min · bike ~${bikeMin} min`,
+  };
+}
+
 export function formatMiles(miles: number): string {
   return Number.isInteger(miles) ? `${miles} mi` : `${miles.toFixed(1)} mi`;
 }

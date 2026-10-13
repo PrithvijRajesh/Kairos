@@ -9,15 +9,21 @@ function RootStack() {
   return (
     <Stack
       screenOptions={{
-        headerStyle: { backgroundColor: colors.background },
+        headerStyle: {
+          backgroundColor: colors.background,
+        },
+        headerShadowVisible: false,
         headerTintColor: colors.text,
-        headerTitleStyle: { fontWeight: '700' },
+        headerTitleStyle: {
+          fontWeight: '700',
+          fontSize: 16,
+        },
         contentStyle: { backgroundColor: colors.background },
         headerBackTitle: 'Back',
       }}
     >
-      <Stack.Screen name="index" options={{ title: 'Goals' }} />
-      <Stack.Screen name="dashboard" options={{ title: 'Dashboard', headerBackVisible: false }} />
+      <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="dashboard" options={{ title: 'Kairos', headerShown: false }} />
       <Stack.Screen
         name="settings"
         options={{
@@ -31,28 +37,14 @@ function RootStack() {
       <Stack.Screen
         name="run"
         options={{
-          title: 'Run',
-          headerLeft: () => <HeaderBackButton label="Home" fallbackHref="/dashboard" />,
-        }}
-      />
-      <Stack.Screen
-        name="week"
-        options={{
-          title: 'Week',
-          headerLeft: () => <HeaderBackButton label="Home" fallbackHref="/dashboard" />,
-        }}
-      />
-      <Stack.Screen
-        name="check-in"
-        options={{
-          title: 'Check-in',
+          title: 'Cardio',
           headerLeft: () => <HeaderBackButton label="Home" fallbackHref="/dashboard" />,
         }}
       />
       <Stack.Screen
         name="log-run"
         options={{
-          title: 'Log run',
+          title: 'Log',
           headerLeft: () => <HeaderBackButton label="Back" fallbackHref="/run" />,
         }}
       />
@@ -63,6 +55,9 @@ function RootStack() {
           headerLeft: () => <HeaderBackButton label="Back" fallbackHref="/lift" />,
         }}
       />
+      <Stack.Screen name="week" options={{ headerShown: false }} />
+      <Stack.Screen name="check-in" options={{ headerShown: false }} />
+      <Stack.Screen name="onboarding" options={{ headerShown: false }} />
     </Stack>
   );
 }

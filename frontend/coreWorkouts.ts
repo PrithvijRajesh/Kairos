@@ -41,7 +41,7 @@ export const coreExerciseLibrary: Record<string, CoreExerciseTemplate> = {
     restSec: 45,
     cues: [
       'Lower back stays flat on the floor',
-      'Exhale as you extend arm and opposite leg',
+      'Exhale as you extend — gentle lift of the pelvic floor (like stopping pee mid-stream), then soften',
       'Move slow — no rocking',
     ],
     stopIf: 'Stop if your low back arches off the floor.',
@@ -79,7 +79,7 @@ export const coreExerciseLibrary: Record<string, CoreExerciseTemplate> = {
     restSec: 45,
     cues: [
       'Elbows under shoulders, fists or flat palms',
-      'Squeeze glutes, ribs down',
+      'Squeeze glutes, ribs down — soft pelvic-floor lift on each exhale',
       'Breathe behind your brace — don’t hold breath the whole time',
     ],
     stopIf: 'Stop if hips sag or shoulders dump forward.',
@@ -198,6 +198,25 @@ export const coreExerciseLibrary: Record<string, CoreExerciseTemplate> = {
       { level: 1, label: 'Standard', repsPerSide: 15 },
       { level: 2, label: 'More reps', repsPerSide: 18 },
       { level: 3, label: 'Band above knees', repsPerSide: 18 },
+    ],
+  },
+
+  side_lying_adduction: {
+    id: 'side_lying_adduction',
+    name: 'Side-lying hip adduction',
+    type: 'reps',
+    sets: 2,
+    restSec: 40,
+    cues: [
+      'Lie on your side, bottom leg straight, top leg bent in front for balance',
+      'Lift the bottom leg a few inches — squeeze inner thigh',
+      'Slow lower — no swinging',
+    ],
+    stopIf: 'Stop if groin pain is sharp (mild fatigue is fine).',
+    levels: [
+      { level: 1, label: 'Standard', repsPerSide: 12 },
+      { level: 2, label: 'More reps', repsPerSide: 15 },
+      { level: 3, label: 'Pause at top', repsPerSide: 15 },
     ],
   },
 
@@ -365,12 +384,12 @@ export const workoutB: CoreWorkout = {
 export const workoutC: CoreWorkout = {
   id: 'C',
   title: 'Run stability C',
-  focus: 'Hips & lateral chain — single-leg support',
+  focus: 'Hips & lateral chain — single-leg support (no bench needed)',
   estimatedMin: 17,
   exerciseIds: [
     'side_plank',
     'clamshell',
-    'copenhagen_plank',
+    'side_lying_adduction',
     'single_leg_glute_bridge',
     'hip_airplane',
   ],

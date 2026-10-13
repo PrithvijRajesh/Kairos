@@ -22,6 +22,8 @@ export type CoreStreakState = {
 export type CoreProgressState = {
   entries: Record<string, CoreProgressEntry>;
   streak: CoreStreakState;
+  /** All dates core was completed (YYYY-MM-DD), used to rebuild streak when backdating */
+  completedDates?: string[];
 };
 
 const DEFAULT_STREAK: CoreStreakState = {
@@ -30,7 +32,7 @@ const DEFAULT_STREAK: CoreStreakState = {
   lastCompletedDate: null,
 };
 
-const DEFAULT_STATE: CoreProgressState = { entries: {}, streak: DEFAULT_STREAK };
+const DEFAULT_STATE: CoreProgressState = { entries: {}, streak: DEFAULT_STREAK, completedDates: [] };
 const DEFAULT_ENTRY: CoreProgressEntry = { level: 1, bonusSec: 0 };
 
 const TIME_BONUS_STEP = 5;
@@ -45,9 +47,15 @@ function safeParseProgress(raw: string | null): CoreProgressState {
     if (!parsed || typeof parsed !== 'object' || !parsed.entries) {
       return DEFAULT_STATE;
     }
+    const completedDates = Array.isArray(parsed.completedDates)
+      ? parsed.completedDates
+      : parsed.streak?.lastCompletedDate
+        ? [parsed.streak.lastCompletedDate]
+        : [];
     return {
       entries: parsed.entries,
       streak: parsed.streak ?? DEFAULT_STREAK,
+      completedDates,
     };
   } catch {
     return DEFAULT_STATE;
@@ -138,31 +146,79 @@ export function toLocalDateKey(date: Date = new Date()): string {
   return `${y}-${m}-${d}`;
 }
 
-function isYesterdayDateKey(dateKey: string): boolean {
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  return toLocalDateKey(yesterday) === dateKey;
+function addDaysToDateKey(dateKey: string, deltaDays: number): string {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const dt = new Date(year, month - 1, day);
+  dt.setDate(dt.getDate() + deltaDays);
+  return toLocalDateKey(dt);
 }
 
-export function recordCoreWorkoutCompletion(state: CoreProgressState): CoreProgressState {
-  const today = toLocalDateKey();
-  const last = state.streak.lastCompletedDate;
+function collectCompletedDates(state: CoreProgressState): string[] {
+  const set = new Set<string>(state.completedDates ?? []);
+  if (state.streak.lastCompletedDate) {
+    set.add(state.streak.lastCompletedDate);
+  }
+  return [...set].sort();
+}
 
-  if (last === today) {
-    return state;
+function computeStreakFromDates(completedDates: string[]): CoreStreakState {
+  const unique = [...new Set(completedDates)].sort();
+  if (unique.length === 0) {
+    return { ...DEFAULT_STREAK };
   }
 
-  const currentStreak = last && isYesterdayDateKey(last) ? state.streak.currentStreak + 1 : 1;
-  const longestStreak = Math.max(state.streak.longestStreak, currentStreak);
+  const lastCompletedDate = unique[unique.length - 1];
+  const set = new Set(unique);
+
+  let currentStreak = 1;
+  let cursor = lastCompletedDate;
+  while (set.has(addDaysToDateKey(cursor, -1))) {
+    currentStreak += 1;
+    cursor = addDaysToDateKey(cursor, -1);
+  }
+
+  let longestStreak = 1;
+  let run = 1;
+  for (let i = 1; i < unique.length; i++) {
+    if (unique[i] === addDaysToDateKey(unique[i - 1], 1)) {
+      run += 1;
+      longestStreak = Math.max(longestStreak, run);
+    } else {
+      run = 1;
+    }
+  }
+  longestStreak = Math.max(longestStreak, currentStreak);
+
+  return {
+    currentStreak,
+    longestStreak,
+    lastCompletedDate,
+  };
+}
+
+/** Mark core done for a specific date (today, yesterday, or any past day). Rebuilds streak. */
+export function recordCoreWorkoutCompletionForDate(
+  state: CoreProgressState,
+  dateKey: string
+): CoreProgressState {
+  const completedDates = collectCompletedDates(state);
+  if (!completedDates.includes(dateKey)) {
+    completedDates.push(dateKey);
+  }
+  completedDates.sort();
+  const streak = computeStreakFromDates(completedDates);
+  // Preserve historical longest if somehow larger
+  streak.longestStreak = Math.max(streak.longestStreak, state.streak.longestStreak);
 
   return {
     ...state,
-    streak: {
-      currentStreak,
-      longestStreak,
-      lastCompletedDate: today,
-    },
+    completedDates,
+    streak,
   };
+}
+
+export function recordCoreWorkoutCompletion(state: CoreProgressState): CoreProgressState {
+  return recordCoreWorkoutCompletionForDate(state, toLocalDateKey());
 }
 
 export function getExerciseLevel(
@@ -180,5 +236,14 @@ export function getExerciseBonusSeconds(
 }
 
 export function isCoreWorkoutCompletedToday(state: CoreProgressState): boolean {
-  return state.streak.lastCompletedDate === toLocalDateKey();
+  return isCoreCompletedOnDate(state, toLocalDateKey());
+}
+
+export function isCoreCompletedOnDate(state: CoreProgressState, dateKey: string): boolean {
+  if (state.streak.lastCompletedDate === dateKey) return true;
+  return (state.completedDates ?? []).includes(dateKey);
+}
+
+export function yesterdayDateKey(): string {
+  return addDaysToDateKey(toLocalDateKey(), -1);
 }

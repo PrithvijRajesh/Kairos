@@ -1,10 +1,11 @@
-// Shown after finishing workout: celebration message + streak, then rate exercises.
+// Core complete — streak only, no ratings.
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { Text, View, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { loadCoreProgress } from '../../coreProgress';
 import { useTheme } from '../../ThemeContext';
-import { radius, spacing } from '../../theme';
+import { type as typeScale } from '../../theme';
+import { Panel, PrimaryButton, Screen, SecondaryButton, StatBlock } from '../../ui';
 
 export default function CoreCompleteScreen() {
   const { colors } = useTheme();
@@ -18,101 +19,27 @@ export default function CoreCompleteScreen() {
     });
   }, []);
 
-  const styles = makeStyles(colors);
-
   return (
-    <View style={styles.container}>
-      <Text style={styles.emoji}>✓</Text>
-      <Text style={styles.title}>You're all done for today!</Text>
-      <Text style={styles.subtitle}>Great work finishing your core session.</Text>
-
-      <View style={styles.streakCard}>
-        <Text style={styles.streakLabel}>Current streak</Text>
-        <Text style={styles.streakValue}>
-          {currentStreak} day{currentStreak === 1 ? '' : 's'}
-        </Text>
-        <Text style={styles.streakMeta}>Longest streak: {longestStreak} days</Text>
+    <Screen scroll={false}>
+      <View style={styles.center}>
+        <Text style={[typeScale.section, { color: colors.accent }]}>Done</Text>
+        <Text style={[typeScale.display, { color: colors.text }]}>Session logged</Text>
+        <Panel style={{ width: '100%', marginTop: 24 }}>
+          <View style={styles.row}>
+            <StatBlock value={currentStreak} label="streak" />
+            <StatBlock value={longestStreak} label="best" />
+          </View>
+        </Panel>
+        <View style={{ width: '100%', gap: 12, marginTop: 24 }}>
+          <PrimaryButton label="Home" onPress={() => router.replace('/dashboard')} />
+          <SecondaryButton label="Back to core" onPress={() => router.replace('/core')} />
+        </View>
       </View>
-
-      <Pressable style={styles.button} onPress={() => router.replace('/core/review')}>
-        <Text style={styles.buttonText}>Rate this workout</Text>
-      </Pressable>
-
-      <Pressable style={styles.secondaryButton} onPress={() => router.replace('/core')}>
-        <Text style={styles.secondaryButtonText}>Back to Core</Text>
-      </Pressable>
-    </View>
+    </Screen>
   );
 }
 
-function makeStyles(colors: ReturnType<typeof useTheme>['colors']) {
-  return StyleSheet.create({
-    container: {
-      flex: 1,
-      padding: spacing.lg,
-      justifyContent: 'center',
-      gap: spacing.md,
-      backgroundColor: colors.background,
-    },
-    emoji: {
-      fontSize: 56,
-      textAlign: 'center',
-      color: colors.accent,
-    },
-    title: {
-      fontSize: 28,
-      fontWeight: '700',
-      textAlign: 'center',
-      color: colors.text,
-    },
-    subtitle: {
-      fontSize: 16,
-      textAlign: 'center',
-      color: colors.textMuted,
-    },
-    streakCard: {
-      backgroundColor: colors.surface,
-      borderRadius: radius.lg,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: spacing.lg,
-      alignItems: 'center',
-      gap: spacing.xs,
-      marginVertical: spacing.sm,
-    },
-    streakLabel: {
-      fontSize: 14,
-      color: colors.textMuted,
-      fontWeight: '600',
-    },
-    streakValue: {
-      fontSize: 32,
-      fontWeight: '700',
-      color: colors.accent,
-    },
-    streakMeta: {
-      fontSize: 14,
-      color: colors.textMuted,
-    },
-    button: {
-      backgroundColor: colors.primary,
-      borderRadius: radius.md,
-      paddingVertical: 14,
-      alignItems: 'center',
-    },
-    buttonText: {
-      color: colors.primaryText,
-      fontWeight: '700',
-      fontSize: 16,
-    },
-    secondaryButton: {
-      paddingVertical: 12,
-      alignItems: 'center',
-    },
-    secondaryButtonText: {
-      color: colors.textMuted,
-      fontSize: 15,
-      fontWeight: '600',
-    },
-  });
-}
+const styles = StyleSheet.create({
+  center: { flex: 1, justifyContent: 'center', gap: 12 },
+  row: { flexDirection: 'row', gap: 10 },
+});

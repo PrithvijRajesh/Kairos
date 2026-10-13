@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { submitGymLog } from './api';
 import { toLocalDateKey } from './coreProgress';
 import { KAIROS_PROGRAM_START } from './programConfig';
-import type { GymExercise } from './gymWorkouts';
+import { getScheduleForDate, type GymExercise } from './gymWorkouts';
 
 const GYM_PROGRESS_KEY = 'kairos.gym.progress.v2';
 
@@ -51,6 +51,14 @@ export type ExerciseWeightMemory = {
   note?: string;
 };
 
+/** Temporary start-weight scale for a return-from-illness / soft-reset day. */
+export type ReturnDeload = {
+  /** Multiply suggested start weights (e.g. 0.75 = −25%) */
+  factor: number;
+  /** Only applied on this local date */
+  forDate: string;
+};
+
 export type GymProgressState = {
   /** YYYY-MM-DD — Day 1 of the lift program (Push). Set once on first open. */
   programStartDate: string | null;
@@ -58,6 +66,8 @@ export type GymProgressState = {
   sessions: GymSessionLog[];
   /** Dates when user chose a forced rest / recovery day (YYYY-MM-DD) */
   forcedRestDays?: string[];
+  /** One-session deload for suggested start weights (does not rewrite history) */
+  returnDeload?: ReturnDeload | null;
   streak: {
     currentStreak: number;
     longestStreak: number;
@@ -78,6 +88,7 @@ function safeParse(raw: string | null): GymProgressState {
       weights: {},
       sessions: [],
       forcedRestDays: [],
+      returnDeload: null,
       streak: { ...DEFAULT_STREAK },
     };
   }
@@ -88,6 +99,7 @@ function safeParse(raw: string | null): GymProgressState {
       weights: parsed.weights ?? {},
       sessions: parsed.sessions ?? [],
       forcedRestDays: parsed.forcedRestDays ?? [],
+      returnDeload: parsed.returnDeload ?? null,
       streak: parsed.streak ?? { ...DEFAULT_STREAK },
     };
   } catch {
@@ -96,6 +108,7 @@ function safeParse(raw: string | null): GymProgressState {
       weights: {},
       sessions: [],
       forcedRestDays: [],
+      returnDeload: null,
       streak: { ...DEFAULT_STREAK },
     };
   }
@@ -139,17 +152,38 @@ export async function setLiftProgramStartDate(dateKey: string): Promise<GymProgr
 }
 
 /**
- * Perform a soft reset of the lift program to start fresh at Day 1 (Push) on dateKey (defaults to today).
- * Preserves all previous session logs and exercise weight memories.
+ * Soft reset to Day 1 (Push) on dateKey.
+ * Preserves session history and weight memory.
+ * Optional returnDeloadFactor (e.g. 0.75) scales suggested start weights for that day only.
  */
-export async function softResetLiftProgram(dateKey: string = toLocalDateKey()): Promise<GymProgressState> {
+export async function softResetLiftProgram(
+  dateKey: string = toLocalDateKey(),
+  options?: { returnDeloadFactor?: number }
+): Promise<GymProgressState> {
   const state = await loadGymProgress();
+  const factor = options?.returnDeloadFactor;
   const next: GymProgressState = {
     ...state,
     programStartDate: dateKey,
+    returnDeload:
+      factor != null && factor > 0 && factor < 1
+        ? { factor, forDate: dateKey }
+        : null,
   };
   await saveGymProgress(next);
   return next;
+}
+
+export function isReturnDeloadActive(
+  state: GymProgressState,
+  dateKey: string = toLocalDateKey()
+): boolean {
+  return !!state.returnDeload && state.returnDeload.forDate === dateKey;
+}
+
+export function returnDeloadPercent(state: GymProgressState): number | null {
+  if (!state.returnDeload) return null;
+  return Math.round((1 - state.returnDeload.factor) * 100);
 }
 
 function shiftIsoDate(isoDate: string, daysDelta: number): string {
@@ -160,8 +194,19 @@ function shiftIsoDate(isoDate: string, daysDelta: number): string {
 }
 
 /**
- * Records a forced rest day for dateKey (defaults to today) and shifts the program anchor
- * forward by 1 day so tomorrow resumes the workout that was scheduled for today.
+ * You planned to lift on missedDateKey but didn't (weather, etc.).
+ * Marks that day as forced weather rest and shifts the rotation so today
+ * shows the workout that was scheduled for the missed day.
+ */
+export async function catchUpMissedLiftDay(
+  missedDateKey: string = shiftIsoDate(toLocalDateKey(), -1)
+): Promise<GymProgressState> {
+  return recordForcedRestDay(missedDateKey);
+}
+
+/**
+ * Records a forced rest / weather delay for dateKey and shifts the program
+ * anchor forward by 1 day so the missed workout moves to the next day.
  */
 export async function recordForcedRestDay(dateKey: string = toLocalDateKey()): Promise<GymProgressState> {
   const state = await loadGymProgress();
@@ -170,7 +215,7 @@ export async function recordForcedRestDay(dateKey: string = toLocalDateKey()): P
 
   const newRestList = alreadyMarked ? restList : [...restList, dateKey];
   const curStart = state.programStartDate ?? KAIROS_PROGRAM_START;
-  // Shift program start date forward by 1 day so today becomes a rest day and the rotation slides smoothly
+  // Shift program start forward by 1 so the missed day's workout slides to the next day
   const newStart = alreadyMarked ? curStart : shiftIsoDate(curStart, 1);
 
   const next: GymProgressState = {
@@ -264,19 +309,31 @@ export function getRecoveryInsights(state: GymProgressState, todayDateKey: strin
   };
 }
 
-/** Last saved start weight, or null if first time (user enters their own). */
-export function getSuggestedStartWeight(
-  state: GymProgressState,
-  exercise: GymExercise
-): number | null {
-  const mem = state.weights[exercise.id];
-  if (!mem) return null;
-  return mem.nextStartWeightLbs ?? mem.lastWorkingWeightLbs;
-}
-
 function roundToIncrement(weight: number, increment: number): number {
   if (increment <= 0) return Math.round(weight * 2) / 2;
   return Math.round(weight / increment) * increment;
+}
+
+/** Last saved start weight, or null if first time (user enters their own). */
+export function getSuggestedStartWeight(
+  state: GymProgressState,
+  exercise: GymExercise,
+  dateKey: string = toLocalDateKey()
+): number | null {
+  const mem = state.weights[exercise.id];
+  if (!mem) return null;
+  const base = mem.nextStartWeightLbs ?? mem.lastWorkingWeightLbs;
+  if (base == null) return null;
+
+  if (isReturnDeloadActive(state, dateKey) && state.returnDeload) {
+    const scaled = base * state.returnDeload.factor;
+    const inc = Math.max(exercise.incrementLbs || 2.5, 2.5);
+    // Bodyweight / zero stays zero; never round up above the deload target
+    if (base <= 0) return 0;
+    return Math.max(0, Math.min(base, roundToIncrement(scaled, inc)));
+  }
+
+  return base;
 }
 
 /**
@@ -359,8 +416,89 @@ export function nextSessionWeightForExercise(
   return { weight: base, progressed: false };
 }
 
+export type LiftDayLogStatus = {
+  dateKey: string;
+  label: string;
+  kind: 'lift' | 'rest' | 'weather';
+  logged: boolean;
+  forcedRest: boolean;
+};
+
+/**
+ * Schedule label for a past/present date without letting later weather-rest
+ * shifts rewrite earlier days' workout names.
+ * Current programStart already includes +1 for every forced rest; for date D,
+ * undo rests that happened after D so D keeps its original label.
+ */
+function scheduleForAttendanceDate(
+  dateKey: string,
+  programStartIso: string,
+  forcedRestDays: string[]
+): ReturnType<typeof getScheduleForDate> {
+  const restsAfter = forcedRestDays.filter((d) => d > dateKey).length;
+  const effectiveStart = shiftIsoDate(programStartIso, -restsAfter);
+  const [y, m, d] = dateKey.split('-').map(Number);
+  return getScheduleForDate(new Date(y, m - 1, d), effectiveStart);
+}
+
+/** Recent lift days — see what was logged in-app vs only in Sheets. */
+export function buildLiftAttendanceCalendar(
+  state: GymProgressState,
+  programStartIso: string,
+  daysBack = 21
+): LiftDayLogStatus[] {
+  const loggedDates = new Set(state.sessions.map((s) => s.date));
+  const forcedList = state.forcedRestDays ?? [];
+  const forced = new Set(forcedList);
+  const rows: LiftDayLogStatus[] = [];
+  const today = toLocalDateKey();
+
+  for (let i = daysBack - 1; i >= 0; i--) {
+    const [y, m, d] = today.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    dt.setDate(dt.getDate() - i);
+    const dateKey = toLocalDateKey(dt);
+
+    if (forced.has(dateKey)) {
+      rows.push({
+        dateKey,
+        label: 'Weather / forced rest',
+        kind: 'weather',
+        logged: false,
+        forcedRest: true,
+      });
+      continue;
+    }
+
+    const schedule = scheduleForAttendanceDate(dateKey, programStartIso, forcedList);
+    rows.push({
+      dateKey,
+      label: schedule.label,
+      kind: schedule.kind === 'lift' ? 'lift' : 'rest',
+      logged: loggedDates.has(dateKey),
+      forcedRest: false,
+    });
+  }
+  return rows;
+}
+
+/** Lift days in the window that were not logged in-app and are not weather/forced rest. */
+export function getMissedLiftDays(
+  state: GymProgressState,
+  programStartIso: string,
+  daysBack = 21
+): LiftDayLogStatus[] {
+  return buildLiftAttendanceCalendar(state, programStartIso, daysBack).filter(
+    (row) => row.kind === 'lift' && !row.logged && !row.forcedRest
+  );
+}
+
+export function isGymCompletedOnDate(state: GymProgressState, dateKey: string): boolean {
+  return state.sessions.some((s) => s.date === dateKey);
+}
+
 export function isGymCompletedToday(state: GymProgressState): boolean {
-  return state.streak.lastCompletedDate === toLocalDateKey();
+  return isGymCompletedOnDate(state, toLocalDateKey());
 }
 
 function isYesterdayDateKey(dateKey: string): boolean {
@@ -407,6 +545,11 @@ export function recordGymSessionCompletion(
     weights: nextWeights,
     sessions: [session, ...state.sessions].slice(0, 40),
     forcedRestDays: state.forcedRestDays ?? [],
+    // Clear one-day return deload after logging so next session uses real lifts
+    returnDeload:
+      state.returnDeload && state.returnDeload.forDate === sessionDate
+        ? null
+        : state.returnDeload ?? null,
     streak,
   };
 }

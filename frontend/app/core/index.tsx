@@ -1,258 +1,169 @@
-// Core list: today's workout preview and Start workout button.
-import { ScrollView, Text, View, StyleSheet, Pressable } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+// Core — pick focus, random circuit, reps-first.
+import { Alert, Text, View, StyleSheet } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+
 import {
-  getTodayWorkout,
-  getExercisesForWorkout,
-  formatPrescription,
-  getProgramStatusLabel,
-} from '../../coreWorkouts';
+  coreCategories,
+  formatCoreStep,
+  pickWorkoutForCategory,
+  type CoreCategoryId,
+} from '../../coreCategories';
 import {
-  getExerciseLevel,
+  isCoreCompletedOnDate,
   isCoreWorkoutCompletedToday,
   loadCoreProgress,
+  recordCoreWorkoutCompletionForDate,
+  saveCoreProgress,
+  toLocalDateKey,
+  yesterdayDateKey,
 } from '../../coreProgress';
 import { useTheme } from '../../ThemeContext';
-import { radius, spacing } from '../../theme';
+import { spacing, type as typeScale } from '../../theme';
+import {
+  ChoiceChip,
+  PageTitle,
+  PrimaryButton,
+  Screen,
+  SecondaryButton,
+  SectionLabel,
+  StatBlock,
+  Panel,
+  StepRow,
+} from '../../ui';
 
 export default function CoreScreen() {
-  const { colors, programStartDate } = useTheme();
-  const workout = getTodayWorkout(programStartDate);
-  const exercises = getExercisesForWorkout(workout);
-  const [levels, setLevels] = useState<Record<string, 1 | 2 | 3>>({});
+  const { colors } = useTheme();
+  const [categoryId, setCategoryId] = useState<CoreCategoryId>('fast_burner');
   const [currentStreak, setCurrentStreak] = useState(0);
   const [longestStreak, setLongestStreak] = useState(0);
   const [completedToday, setCompletedToday] = useState(false);
+  const [completedYesterday, setCompletedYesterday] = useState(false);
+
+  const todayKey = toLocalDateKey();
+  const workout = useMemo(
+    () => pickWorkoutForCategory(categoryId, todayKey),
+    [categoryId, todayKey]
+  );
+  const category = coreCategories.find((c) => c.id === categoryId)!;
+
+  const refresh = useCallback(async () => {
+    const state = await loadCoreProgress();
+    setCurrentStreak(state.streak.currentStreak);
+    setLongestStreak(state.streak.longestStreak);
+    setCompletedToday(isCoreWorkoutCompletedToday(state));
+    setCompletedYesterday(isCoreCompletedOnDate(state, yesterdayDateKey()));
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
-      let isMounted = true;
-      async function loadLevels() {
-        const state = await loadCoreProgress();
-        if (!isMounted) return;
-        const nextLevels: Record<string, 1 | 2 | 3> = {};
-        for (const exercise of exercises) {
-          nextLevels[exercise.id] = getExerciseLevel(state, exercise.id);
-        }
-        setLevels(nextLevels);
-        setCurrentStreak(state.streak.currentStreak);
-        setLongestStreak(state.streak.longestStreak);
-        setCompletedToday(isCoreWorkoutCompletedToday(state));
-      }
-      loadLevels();
-      return () => {
-        isMounted = false;
-      };
-    }, [workout.id, exercises])
+      void refresh();
+    }, [refresh])
   );
 
-  const styles = makeStyles(colors);
+  async function markCoreDone(dateKey: string, label: string) {
+    const state = await loadCoreProgress();
+    const next = recordCoreWorkoutCompletionForDate(state, dateKey);
+    await saveCoreProgress(next);
+    await refresh();
+    Alert.alert(
+      'Logged',
+      `${label} · streak ${next.streak.currentStreak} day${next.streak.currentStreak === 1 ? '' : 's'}`
+    );
+  }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['bottom']}>
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.badge}>Workout {workout.id}</Text>
-        <Text style={styles.title}>{workout.title}</Text>
-        <Text style={styles.subtitle}>{workout.focus}</Text>
-        <Text style={styles.meta}>{getProgramStatusLabel(new Date(), programStartDate)}</Text>
-        <Text style={styles.meta}>~{workout.estimatedMin} min</Text>
+    <Screen>
+      <PageTitle
+        eyebrow="Core"
+        title={category.title}
+        subtitle="Pick a focus. Today’s circuit is random within that group."
+      />
 
-        {completedToday ? (
-          <View style={styles.completedCard}>
-            <Text style={styles.completedTitle}>Workout completed for today</Text>
-            <Text style={styles.completedSubtitle}>
-              Nice work — come back tomorrow for your next session.
-            </Text>
-            <View style={styles.streakRow}>
-              <View style={styles.streakStat}>
-                <Text style={styles.streakValue}>{currentStreak}</Text>
-                <Text style={styles.streakLabel}>day streak</Text>
-              </View>
-              <View style={styles.streakStat}>
-                <Text style={styles.streakValue}>{longestStreak}</Text>
-                <Text style={styles.streakLabel}>longest</Text>
-              </View>
-            </View>
+      {completedToday ? (
+        <Panel>
+          <Text style={[typeScale.title, { color: colors.text }]}>Done today</Text>
+          <View style={styles.statRow}>
+            <StatBlock value={currentStreak} label="streak" />
+            <StatBlock value={longestStreak} label="best" />
           </View>
-        ) : currentStreak > 0 ? (
-          <Text style={styles.streakBadge}>{currentStreak} day streak</Text>
-        ) : null}
+        </Panel>
+      ) : null}
 
-        {!completedToday
-          ? exercises.map((exercise) => (
-          <View key={exercise.id} style={styles.card}>
-            <Text style={styles.exerciseName}>{exercise.name}</Text>
-            <Text style={styles.exercisePrescription}>
-              {formatPrescription(exercise, levels[exercise.id] ?? 1)}
-            </Text>
-            {exercise.cues.map((cue) => (
-              <Text key={cue} style={styles.cue}>
-                • {cue}
-              </Text>
-            ))}
-            {exercise.stopIf ? (
-              <Text style={styles.note}>{exercise.stopIf}</Text>
-            ) : null}
-          </View>
-            ))
-          : null}
+      <SectionLabel>Focus</SectionLabel>
+      <View style={styles.chipCol}>
+        {coreCategories.map((c) => (
+          <ChoiceChip
+            key={c.id}
+            label={c.title}
+            detail={c.blurb}
+            active={categoryId === c.id}
+            onPress={() => setCategoryId(c.id)}
+          />
+        ))}
+      </View>
 
-        {completedToday ? (
-          <Pressable style={styles.dashboardButton} onPress={() => router.replace('/dashboard')}>
-            <Text style={styles.dashboardButtonText}>Back to Dashboard</Text>
-          </Pressable>
-        ) : (
-          <Pressable style={styles.startButton} onPress={() => router.push('/core/workout')}>
-            <Text style={styles.startButtonText}>Start workout</Text>
-          </Pressable>
-        )}
-      </ScrollView>
-    </SafeAreaView>
+      <Panel>
+        <SectionLabel>Today</SectionLabel>
+        <Text style={[typeScale.title, { color: colors.text }]}>{workout.title}</Text>
+        <Text style={[typeScale.caption, { color: colors.textMuted }]}>
+          ~{workout.estimatedMin} min · {workout.rounds}× round{workout.rounds === 1 ? '' : 's'}
+        </Text>
+        {workout.steps.map((step, i) => (
+          <StepRow
+            key={step.id}
+            index={i + 1}
+            label={step.label}
+            amount={formatCoreStep(step)}
+            kind={step.kind}
+          />
+        ))}
+        <Text style={[typeScale.caption, { color: colors.accent, marginTop: spacing.sm }]}>
+          {workout.cue}
+        </Text>
+      </Panel>
+
+      {!completedToday ? (
+        <>
+          <PrimaryButton
+            label="Start"
+            onPress={() =>
+              router.push({
+                pathname: '/core/workout',
+                params: { categoryId, workoutId: workout.id },
+              })
+            }
+          />
+          <SecondaryButton
+            label="I did my own core"
+            onPress={() =>
+              Alert.alert('Mark done?', 'Counts toward streak.', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Yes', onPress: () => void markCoreDone(todayKey, 'Today') },
+              ])
+            }
+          />
+        </>
+      ) : (
+        <SecondaryButton label="Home" onPress={() => router.replace('/dashboard')} />
+      )}
+
+      {!completedYesterday ? (
+        <SecondaryButton
+          label="Log yesterday"
+          onPress={() =>
+            Alert.alert('Log yesterday?', undefined, [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Yes', onPress: () => void markCoreDone(yesterdayDateKey(), 'Yesterday') },
+            ])
+          }
+        />
+      ) : null}
+    </Screen>
   );
 }
 
-function makeStyles(colors: ReturnType<typeof useTheme>['colors']) {
-  return StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  container: {
-    padding: spacing.lg,
-    gap: spacing.sm,
-    paddingBottom: spacing.lg * 2,
-  },
-  badge: {
-    alignSelf: 'flex-start',
-    backgroundColor: colors.accentSoft,
-    color: colors.accent,
-    fontSize: 13,
-    fontWeight: '700',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.sm,
-    overflow: 'hidden',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  subtitle: {
-    fontSize: 15,
-    color: colors.textMuted,
-  },
-  meta: {
-    fontSize: 14,
-    color: colors.textMuted,
-    marginBottom: spacing.sm,
-  },
-  streakBadge: {
-    alignSelf: 'flex-start',
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.accent,
-    backgroundColor: colors.accentSoft,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.sm,
-    marginBottom: spacing.sm,
-  },
-  completedCard: {
-    backgroundColor: colors.accentSoft,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.accent,
-    padding: spacing.lg,
-    gap: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  completedTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  completedSubtitle: {
-    fontSize: 15,
-    color: colors.textMuted,
-  },
-  streakRow: {
-    flexDirection: 'row',
-    gap: spacing.md,
-    marginTop: spacing.sm,
-  },
-  streakStat: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  streakValue: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: colors.accent,
-  },
-  streakLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.textMuted,
-  },
-  dashboardButton: {
-    marginTop: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingVertical: 14,
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-  },
-  dashboardButtonText: {
-    color: colors.text,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.md,
-    gap: spacing.xs,
-  },
-  exerciseName: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  exercisePrescription: {
-    fontSize: 15,
-    color: colors.text,
-  },
-  cue: {
-    fontSize: 14,
-    color: colors.text,
-  },
-  note: {
-    fontSize: 13,
-    color: colors.textMuted,
-    fontStyle: 'italic',
-    marginTop: spacing.xs,
-  },
-  startButton: {
-    marginTop: spacing.md,
-    backgroundColor: colors.primary,
-    borderRadius: radius.md,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  startButtonText: {
-    color: colors.primaryText,
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  });
-}
+const styles = StyleSheet.create({
+  chipCol: { gap: spacing.sm },
+  statRow: { flexDirection: 'row', gap: spacing.sm },
+});

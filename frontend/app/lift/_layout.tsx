@@ -10,8 +10,9 @@ export default function LiftLayout() {
     <Stack
       screenOptions={{
         headerStyle: { backgroundColor: colors.background },
+        headerShadowVisible: false,
         headerTintColor: colors.text,
-        headerTitleStyle: { fontWeight: '700' },
+        headerTitleStyle: { fontWeight: '700', fontSize: 16 },
         contentStyle: { backgroundColor: colors.background },
         headerBackTitle: 'Back',
       }}
@@ -29,7 +30,7 @@ export default function LiftLayout() {
           title: 'Workout',
           headerLeft: () => (
             <Pressable onPress={() => router.back()} hitSlop={12} style={{ paddingHorizontal: 4 }}>
-              <Text style={{ fontSize: 17, fontWeight: '600', color: colors.accent }}>‹ Back</Text>
+              <Text style={{ fontSize: 15, fontWeight: '600', color: colors.text }}>Back</Text>
             </Pressable>
           ),
         }}
@@ -48,7 +49,7 @@ export default function LiftLayout() {
           title: 'Worksheet',
           headerLeft: () => (
             <Pressable onPress={() => router.back()} hitSlop={12} style={{ paddingHorizontal: 4 }}>
-              <Text style={{ fontSize: 17, fontWeight: '600', color: colors.accent }}>‹ Back</Text>
+              <Text style={{ fontSize: 15, fontWeight: '600', color: colors.text }}>Back</Text>
             </Pressable>
           ),
         }}

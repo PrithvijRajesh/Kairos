@@ -1,4 +1,4 @@
-// Core section layout: stack navigation between list, workout, and review.
+// Core section layout.
 import { Pressable, Text } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { useTheme } from '../../ThemeContext';
@@ -11,8 +11,9 @@ export default function CoreLayout() {
     <Stack
       screenOptions={{
         headerStyle: { backgroundColor: colors.background },
+        headerShadowVisible: false,
         headerTintColor: colors.text,
-        headerTitleStyle: { fontWeight: '700' },
+        headerTitleStyle: { fontWeight: '700', fontSize: 16 },
         contentStyle: { backgroundColor: colors.background },
         headerBackTitle: 'Back',
       }}
@@ -27,10 +28,10 @@ export default function CoreLayout() {
       <Stack.Screen
         name="workout"
         options={{
-          title: 'Workout',
+          title: 'Session',
           headerLeft: () => (
             <Pressable onPress={() => router.back()} hitSlop={12} style={{ paddingHorizontal: 4 }}>
-              <Text style={{ fontSize: 17, fontWeight: '600', color: colors.accent }}>‹ Back</Text>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: colors.text }}>Back</Text>
             </Pressable>
           ),
         }}
@@ -38,20 +39,9 @@ export default function CoreLayout() {
       <Stack.Screen
         name="complete"
         options={{
-          title: 'Complete',
+          title: 'Done',
           headerBackVisible: false,
           headerLeft: () => <HeaderBackButton label="Home" fallbackHref="/dashboard" />,
-        }}
-      />
-      <Stack.Screen
-        name="review"
-        options={{
-          title: 'Review',
-          headerLeft: () => (
-            <Pressable onPress={() => router.back()} hitSlop={12} style={{ paddingHorizontal: 4 }}>
-              <Text style={{ fontSize: 17, fontWeight: '600', color: colors.accent }}>‹ Back</Text>
-            </Pressable>
-          ),
         }}
       />
     </Stack>

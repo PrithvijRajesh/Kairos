@@ -1,7 +1,6 @@
-// Stretch list: today's mobility routine and start button.
+// Stretch — simple list + start.
 import { useCallback, useState } from 'react';
-import { ScrollView, Text, View, StyleSheet, Pressable } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Text, View, StyleSheet } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 
 import {
@@ -11,7 +10,16 @@ import {
 } from '../../stretchRoutines';
 import { isStretchCompletedToday, loadStretchProgress } from '../../stretchProgress';
 import { useTheme } from '../../ThemeContext';
-import { radius, spacing } from '../../theme';
+import { spacing, type as typeScale } from '../../theme';
+import {
+  PageTitle,
+  Panel,
+  PrimaryButton,
+  Screen,
+  SecondaryButton,
+  SectionLabel,
+  StatBlock,
+} from '../../ui';
 
 export default function StretchScreen() {
   const { colors } = useTheme();
@@ -38,131 +46,44 @@ export default function StretchScreen() {
     }, [])
   );
 
-  const styles = makeStyles(colors);
-
   return (
-    <SafeAreaView style={styles.safeArea} edges={['bottom']}>
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.badge}>Routine {routine.id}</Text>
-        <Text style={styles.title}>{routine.title}</Text>
-        <Text style={styles.subtitle}>{routine.focus}</Text>
-        <Text style={styles.meta}>~{routine.estimatedMin} min · {exercises.length} stretches</Text>
+    <Screen>
+      <PageTitle
+        eyebrow={`Routine ${routine.id}`}
+        title={routine.title}
+        subtitle={`${routine.focus} · ~${routine.estimatedMin} min`}
+      />
 
-        {completedToday ? (
-          <View style={styles.completedCard}>
-            <Text style={styles.completedTitle}>Stretch completed for today</Text>
-            <Text style={styles.completedSubtitle}>
-              Your mobility is done — nice work staying consistent.
-            </Text>
-            <View style={styles.streakRow}>
-              <View style={styles.streakStat}>
-                <Text style={styles.streakValue}>{currentStreak}</Text>
-                <Text style={styles.streakLabel}>day streak</Text>
-              </View>
-              <View style={styles.streakStat}>
-                <Text style={styles.streakValue}>{longestStreak}</Text>
-                <Text style={styles.streakLabel}>longest</Text>
-              </View>
-            </View>
+      {completedToday ? (
+        <Panel>
+          <Text style={[typeScale.title, { color: colors.text }]}>Done today</Text>
+          <View style={styles.statRow}>
+            <StatBlock value={currentStreak} label="streak" />
+            <StatBlock value={longestStreak} label="best" />
           </View>
-        ) : null}
+        </Panel>
+      ) : (
+        <>
+          <SectionLabel>Moves</SectionLabel>
+          {exercises.map((exercise) => (
+            <Panel key={exercise.id}>
+              <Text style={[typeScale.bodyStrong, { color: colors.text }]}>{exercise.name}</Text>
+              <Text style={[typeScale.caption, { color: colors.textMuted }]}>
+                {formatStretchPrescription(exercise)}
+              </Text>
+            </Panel>
+          ))}
+          <PrimaryButton label="Start" onPress={() => router.push('/stretch/session')} />
+        </>
+      )}
 
-        {!completedToday
-          ? exercises.map((exercise) => (
-              <View key={exercise.id} style={styles.card}>
-                <Text style={styles.exerciseName}>{exercise.name}</Text>
-                <Text style={styles.prescription}>{formatStretchPrescription(exercise)}</Text>
-                {exercise.cues.map((cue) => (
-                  <Text key={cue} style={styles.cue}>
-                    • {cue}
-                  </Text>
-                ))}
-              </View>
-            ))
-          : null}
-
-        {completedToday ? (
-          <Pressable style={styles.dashboardButton} onPress={() => router.replace('/dashboard')}>
-            <Text style={styles.dashboardButtonText}>Back to Dashboard</Text>
-          </Pressable>
-        ) : (
-          <Pressable style={styles.startButton} onPress={() => router.push('/stretch/session')}>
-            <Text style={styles.startButtonText}>Start stretching</Text>
-          </Pressable>
-        )}
-      </ScrollView>
-    </SafeAreaView>
+      {completedToday ? (
+        <SecondaryButton label="Home" onPress={() => router.replace('/dashboard')} />
+      ) : null}
+    </Screen>
   );
 }
 
-function makeStyles(colors: ReturnType<typeof useTheme>['colors']) {
-  return StyleSheet.create({
-    safeArea: { flex: 1, backgroundColor: colors.background },
-    container: { padding: spacing.lg, gap: spacing.sm, paddingBottom: spacing.lg * 2 },
-    badge: {
-      alignSelf: 'flex-start',
-      backgroundColor: colors.accentSoft,
-      color: colors.accent,
-      fontSize: 13,
-      fontWeight: '700',
-      paddingHorizontal: spacing.sm,
-      paddingVertical: spacing.xs,
-      borderRadius: radius.sm,
-      overflow: 'hidden',
-    },
-    title: { fontSize: 28, fontWeight: '700', color: colors.text },
-    subtitle: { fontSize: 15, color: colors.textMuted },
-    meta: { fontSize: 14, color: colors.textMuted, marginBottom: spacing.sm },
-    completedCard: {
-      backgroundColor: colors.accentSoft,
-      borderRadius: radius.lg,
-      borderWidth: 1,
-      borderColor: colors.accent,
-      padding: spacing.lg,
-      gap: spacing.sm,
-      marginBottom: spacing.sm,
-    },
-    completedTitle: { fontSize: 20, fontWeight: '700', color: colors.text },
-    completedSubtitle: { fontSize: 15, color: colors.textMuted },
-    streakRow: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.sm },
-    streakStat: {
-      flex: 1,
-      backgroundColor: colors.surface,
-      borderRadius: radius.md,
-      padding: spacing.md,
-      alignItems: 'center',
-      gap: spacing.xs,
-    },
-    streakValue: { fontSize: 28, fontWeight: '700', color: colors.accent },
-    streakLabel: { fontSize: 13, fontWeight: '600', color: colors.textMuted },
-    card: {
-      backgroundColor: colors.surface,
-      borderRadius: radius.md,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: spacing.md,
-      gap: spacing.xs,
-    },
-    exerciseName: { fontSize: 17, fontWeight: '700', color: colors.text },
-    prescription: { fontSize: 15, color: colors.text },
-    cue: { fontSize: 14, color: colors.textMuted },
-    startButton: {
-      marginTop: spacing.md,
-      backgroundColor: colors.primary,
-      borderRadius: radius.md,
-      paddingVertical: 16,
-      alignItems: 'center',
-    },
-    startButtonText: { color: colors.primaryText, fontSize: 17, fontWeight: '700' },
-    dashboardButton: {
-      marginTop: spacing.md,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: radius.md,
-      paddingVertical: 14,
-      alignItems: 'center',
-      backgroundColor: colors.surface,
-    },
-    dashboardButtonText: { color: colors.text, fontSize: 16, fontWeight: '700' },
-  });
-}
+const styles = StyleSheet.create({
+  statRow: { flexDirection: 'row', gap: spacing.sm },
+});

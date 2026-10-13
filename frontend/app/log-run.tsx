@@ -29,16 +29,16 @@ import { loadCardioLog } from '../cardioLog';
 import { useTheme } from '../ThemeContext';
 import { radius, spacing } from '../theme';
 
-const MODES: { id: CardioMode; label: string; icon: string }[] = [
-  { id: 'run', label: 'Outdoor Run', icon: '🏃' },
-  { id: 'treadmill', label: 'Treadmill', icon: '⚙️' },
-  { id: 'bike', label: 'Bike', icon: '🚴' },
+const MODES: { id: CardioMode; label: string }[] = [
+  { id: 'run', label: 'Outdoor' },
+  { id: 'treadmill', label: 'Treadmill' },
+  { id: 'bike', label: 'Bike' },
 ];
 
 const EFFORTS: { id: CardioEffort; label: string; desc: string }[] = [
-  { id: 'light', label: 'Chill 😌', desc: 'Conversational pace, nose-breathing easy' },
-  { id: 'normal', label: 'Normal 😤', desc: 'Comfortable push — could talk in short sentences' },
-  { id: 'farther', label: 'Harder 🔥', desc: 'Pushed it — high effort, breathing heavy' },
+  { id: 'light', label: 'Chill', desc: 'Conversational pace, nose-breathing easy' },
+  { id: 'normal', label: 'Normal', desc: 'Comfortable push — short sentences' },
+  { id: 'farther', label: 'Harder', desc: 'High effort, breathing heavy' },
 ];
 
 const DATE_PRESETS = [
@@ -55,14 +55,16 @@ function dateFromOffset(offset: number): string {
 
 export default function LogRunScreen() {
   const { colors } = useTheme();
-  const params = useLocalSearchParams<{ mode?: string; date?: string }>();
+  const params = useLocalSearchParams<{ mode?: string; date?: string; effort?: string }>();
 
   const initMode: CardioMode =
     params.mode === 'treadmill' || params.mode === 'bike' ? params.mode : 'run';
   const initDate = params.date ?? toLocalDateKey();
+  const initEffort: CardioEffort =
+    params.effort === 'light' || params.effort === 'farther' ? params.effort : 'normal';
 
   const [mode, setMode] = useState<CardioMode>(initMode);
-  const [effort, setEffort] = useState<CardioEffort>('normal');
+  const [effort, setEffort] = useState<CardioEffort>(initEffort);
   const [distanceText, setDistanceText] = useState('');
   const [durationText, setDurationText] = useState('');
   const [inclineText, setInclineText] = useState('');
@@ -138,7 +140,7 @@ export default function LogRunScreen() {
       }
     }
 
-    Alert.alert('Logged! 🎉', nextMsg, [
+    Alert.alert('Logged', nextMsg, [
       { text: 'OK', onPress: () => router.push('/run') },
     ]);
   }
@@ -158,7 +160,6 @@ export default function LogRunScreen() {
                 style={[styles.chip, mode === m.id && styles.chipActive]}
                 onPress={() => setMode(m.id)}
               >
-                <Text style={styles.chipIcon}>{m.icon}</Text>
                 <Text style={[styles.chipLabel, mode === m.id && styles.chipLabelActive]}>
                   {m.label}
                 </Text>
@@ -178,7 +179,9 @@ export default function LogRunScreen() {
                 <Text style={[styles.chipLabel, datePreset === p.offset && styles.chipLabelActive]}>
                   {p.label}
                 </Text>
-                <Text style={styles.chipSub}>{dateFromOffset(p.offset)}</Text>
+                <Text style={[styles.chipSub, datePreset === p.offset && { color: colors.accent }]}>
+                  {dateFromOffset(p.offset)}
+                </Text>
               </Pressable>
             ))}
           </View>
@@ -270,7 +273,9 @@ export default function LogRunScreen() {
                   <Text style={[styles.effortLabel, effort === e.id && styles.effortLabelActive]}>
                     {e.label}
                   </Text>
-                  <Text style={styles.effortDesc}>{e.desc}</Text>
+                  <Text style={[styles.effortDesc, effort === e.id && { color: colors.accentMuted }]}>
+                    {e.desc}
+                  </Text>
                 </View>
                 {effort === e.id && <Text style={styles.checkmark}>✓</Text>}
               </Pressable>
@@ -302,13 +307,17 @@ function makeStyles(colors: ReturnType<typeof useTheme>['colors']) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: colors.background },
     container: { padding: spacing.lg, gap: spacing.sm, paddingBottom: 48 },
-    title: { fontSize: 26, fontWeight: '700', color: colors.text, marginBottom: spacing.xs },
+    title: {
+      fontSize: 28,
+      fontWeight: '600',
+      letterSpacing: -0.6,
+      color: colors.text,
+      marginBottom: spacing.xs,
+    },
     sectionLabel: {
-      fontSize: 12,
-      fontWeight: '700',
-      color: colors.textMuted,
-      textTransform: 'uppercase',
-      letterSpacing: 0.8,
+      fontSize: 13,
+      fontWeight: '500',
+      color: colors.textSoft,
       marginTop: spacing.sm,
     },
     chipRow: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
@@ -317,23 +326,20 @@ function makeStyles(colors: ReturnType<typeof useTheme>['colors']) {
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.sm,
       borderRadius: radius.md,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surface,
+      backgroundColor: colors.surfaceRaised,
       gap: 2,
     },
-    chipActive: { borderColor: colors.primary, backgroundColor: colors.accentSoft },
+    chipActive: { backgroundColor: colors.accentSoft },
     chipIcon: { fontSize: 18 },
     chipLabel: { fontSize: 13, fontWeight: '600', color: colors.textMuted },
     chipLabelActive: { color: colors.accent },
     chipSub: { fontSize: 11, color: colors.textMuted },
     input: {
-      backgroundColor: colors.surface,
+      backgroundColor: colors.surfaceRaised,
       borderRadius: radius.md,
-      borderWidth: 1,
-      borderColor: colors.border,
       padding: spacing.md,
       fontSize: 16,
+      fontWeight: '500',
       color: colors.text,
     },
     inputMulti: { minHeight: 80, textAlignVertical: 'top' },
@@ -342,22 +348,20 @@ function makeStyles(colors: ReturnType<typeof useTheme>['colors']) {
       flexDirection: 'row',
       alignItems: 'center',
       padding: spacing.md,
-      borderRadius: radius.md,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surface,
+      borderRadius: radius.lg,
+      backgroundColor: colors.surfaceRaised,
     },
-    effortRowActive: { borderColor: colors.primary, backgroundColor: colors.accentSoft },
-    effortLabel: { fontSize: 15, fontWeight: '700', color: colors.text },
+    effortRowActive: { backgroundColor: colors.accentSoft },
+    effortLabel: { fontSize: 15, fontWeight: '600', color: colors.text },
     effortLabelActive: { color: colors.accent },
     effortDesc: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-    checkmark: { fontSize: 18, color: colors.primary, fontWeight: '700' },
+    checkmark: { fontSize: 16, color: colors.accent, fontWeight: '600' },
     saveBtn: {
       marginTop: spacing.md,
       borderRadius: radius.md,
-      paddingVertical: spacing.md,
+      paddingVertical: 15,
       alignItems: 'center',
     },
-    saveBtnText: { fontSize: 16, fontWeight: '700', color: '#fff' },
+    saveBtnText: { fontSize: 15, fontWeight: '600', color: '#fff' },
   });
 }
